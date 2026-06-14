@@ -9,6 +9,7 @@
 #include "UI/MixerView.h"
 #include "UI/StatusBar.h"
 #include "UI/PluginEditorWindow.h"
+#include "UI/PianoRollEditor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -91,6 +92,7 @@ namespace freequency::ui
         std::unique_ptr<ArrangeView> arrangeView;
         std::unique_ptr<MixerView> mixerView;
         std::unique_ptr<StatusBar> statusBar;
+        std::unique_ptr<PianoRollEditor> pianoRoll;
         juce::OwnedArray<PluginEditorWindow> pluginWindows;
 
         juce::ApplicationCommandManager commandManager;

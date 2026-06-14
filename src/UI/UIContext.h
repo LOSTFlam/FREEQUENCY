@@ -36,6 +36,7 @@ namespace freequency::ui
         std::function<void()> repaintArrange; // lightweight: repaint lanes
         std::function<void()> rebuildArrange; // structural: recreate lanes after add/remove
         std::function<void()> pushUndo;       // snapshot the project before an edit
+        std::function<void (models::MidiClip&, models::Track&)> openPianoRoll;
 
         double pixelsPerSecond { 90.0 };
 

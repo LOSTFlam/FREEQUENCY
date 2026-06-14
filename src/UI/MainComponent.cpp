@@ -62,6 +62,13 @@ namespace freequency::ui
         };
         context.closePluginWindows = [this] { pluginWindows.clear(); };
         context.pushUndo = [this] { pushUndo(); };
+        context.openPianoRoll = [this] (models::MidiClip& mc, models::Track& tr)
+        {
+            pianoRoll = std::make_unique<PianoRollEditor> (context, mc, tr);
+            pianoRoll->onClose = [this] { pianoRoll = nullptr; resized(); };
+            addAndMakeVisible (*pianoRoll);
+            pianoRoll->setBounds (getLocalBounds().withTrimmedTop (56));
+        };
 
         audioEngine.setProject (&project);
         audioEngine.onRecordingFinished = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
@@ -280,6 +287,9 @@ namespace freequency::ui
 
         if (mixerView != nullptr)
             mixerView->setBounds (r);
+
+        if (pianoRoll != nullptr)
+            pianoRoll->setBounds (r);
     }
 
     // ── Command actions ─────────────────────────────────────────────────────────

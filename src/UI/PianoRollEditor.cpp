@@ -1,0 +1,450 @@
+#include "UI/PianoRollEditor.h"
+#include "UI/FreequencyLookAndFeel.h"
+
+#include <cmath>
+
+namespace freequency::ui
+{
+    namespace
+    {
+        bool isBlackKey (int pitch) noexcept
+        {
+            switch (pitch % 12) { case 1: case 3: case 6: case 8: case 10: return true; default: return false; }
+        }
+    }
+
+    PianoRollEditor::PianoRollEditor (UIContext& ctx, models::MidiClip& c, models::Track& t)
+        : context (ctx), clip (c), track (t)
+    {
+        addAndMakeVisible (titleLabel);
+        titleLabel.setText ("Piano Roll — " + clip.name, juce::dontSendNotification);
+        titleLabel.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+        titleLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
+
+        addAndMakeVisible (closeButton);
+        closeButton.onClick = [this] { if (onClose) onClose(); };
+
+        addAndMakeVisible (arpButton);
+        arpButton.onClick = [this] { applyArpeggiator(); };
+
+        addAndMakeVisible (slideButton);
+        slideButton.setClickingTogglesState (true);
+        slideButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
+        slideButton.onClick = [this] { slideMode = slideButton.getToggleState(); };
+
+        addAndMakeVisible (snapBox);
+        snapBox.addItemList ({ "1/4", "1/8", "1/16", "1/32", "Off" }, 1);
+        snapBox.setSelectedId (3, juce::dontSendNotification); // 1/16
+        snapBox.onChange = [this]
+        {
+            switch (snapBox.getSelectedId())
+            {
+                case 1: snapGrid = 1.0; break;
+                case 2: snapGrid = 0.5; break;
+                case 3: snapGrid = 0.25; break;
+                case 4: snapGrid = 0.125; break;
+                default: snapGrid = 0.0; break;
+            }
+        };
+
+        keysViewport.setViewedComponent (&keysComp, false);
+        keysViewport.setScrollBarsShown (false, false);
+        addAndMakeVisible (keysViewport);
+
+        gridViewport.setViewedComponent (&gridComp, false);
+        gridViewport.setScrollBarsShown (true, true);
+        gridViewport.onScroll = [this]
+        {
+            const auto pos = gridViewport.getViewPosition();
+            keysViewport.setViewPosition (0, pos.y);
+            velLane.setViewOffsetX (pos.x);
+        };
+        addAndMakeVisible (gridViewport);
+
+        addAndMakeVisible (velLane);
+
+        loadFromClip();
+        startTimerHz (30);
+
+        // Scroll so a useful range (around middle C) is visible initially.
+        juce::MessageManager::callAsync ([this]
+        {
+            gridViewport.setViewPosition (0, juce::jmax (0, pitchToY (84)));
+        });
+    }
+
+    PianoRollEditor::~PianoRollEditor() { stopTimer(); }
+
+    double PianoRollEditor::clipLengthBeats() const
+    {
+        const double tempo = context.project.getTimeline().getTempoBpm();
+        double beats = clip.length * tempo / 60.0;
+        for (const auto& n : notes)
+            beats = juce::jmax (beats, n.startBeats + n.lengthBeats);
+        return juce::jmax (16.0, beats);
+    }
+
+    double PianoRollEditor::snapBeats (double beats) const
+    {
+        if (snapGrid <= 0.0) return juce::jmax (0.0, beats);
+        return juce::jmax (0.0, std::round (beats / snapGrid) * snapGrid);
+    }
+
+    void PianoRollEditor::loadFromClip()
+    {
+        notes.clear();
+        const double beatsPerSec = context.project.getTimeline().getTempoBpm() / 60.0;
+
+        for (int i = 0; i < clip.sequence.getNumEvents(); ++i)
+        {
+            auto* on = clip.sequence.getEventPointer (i);
+            if (! on->message.isNoteOn())
+                continue;
+
+            Note n;
+            n.startBeats = on->message.getTimeStamp() * beatsPerSec;
+            n.pitch = on->message.getNoteNumber();
+            n.velocity = on->message.getVelocity();
+            n.lengthBeats = on->noteOffObject != nullptr
+                                ? (on->noteOffObject->message.getTimeStamp() - on->message.getTimeStamp()) * beatsPerSec
+                                : snapGrid > 0 ? snapGrid : 0.5;
+            notes.push_back (n);
+        }
+    }
+
+    void PianoRollEditor::writeBackToClip()
+    {
+        const double secPerBeat = 60.0 / context.project.getTimeline().getTempoBpm();
+
+        clip.sequence.clear();
+        double maxEndSec = 0.0;
+
+        for (const auto& n : notes)
+        {
+            const double startSec = n.startBeats * secPerBeat;
+            const double endSec = (n.startBeats + n.lengthBeats) * secPerBeat;
+            maxEndSec = juce::jmax (maxEndSec, endSec);
+
+            if (n.slide)
+            {
+                // Basic "slide-in": pitch-bend scoops up to the note over its first
+                // portion (built-in synth + PB-aware plugins respond to this).
+                clip.sequence.addEvent (juce::MidiMessage::pitchWheel (1, 8192 - 3000), startSec);
+                clip.sequence.addEvent (juce::MidiMessage::pitchWheel (1, 8192),
+                                        startSec + juce::jmin (0.08, (endSec - startSec) * 0.5));
+            }
+
+            clip.sequence.addEvent (juce::MidiMessage::noteOn (1, n.pitch, (juce::uint8) n.velocity), startSec);
+            clip.sequence.addEvent (juce::MidiMessage::noteOff (1, n.pitch), endSec);
+        }
+
+        clip.sequence.updateMatchedPairs();
+        if (maxEndSec > clip.length)
+            clip.length = maxEndSec;
+
+        context.engine.rebuildSequences();
+        gridComp.repaint();
+        velLane.repaint();
+        if (context.repaintArrange) context.repaintArrange();
+    }
+
+    void PianoRollEditor::applyArpeggiator()
+    {
+        // Collect the distinct pitches currently in the clip, then lay them out as
+        // an ascending arpeggio at the snap resolution across the clip length.
+        juce::SortedSet<int> pitches;
+        for (const auto& n : notes)
+            pitches.add (n.pitch);
+        if (pitches.isEmpty())
+            return;
+
+        if (context.pushUndo) context.pushUndo();
+
+        const double step = snapGrid > 0 ? snapGrid : 0.25;
+        const double totalBeats = clipLengthBeats();
+
+        notes.clear();
+        int idx = 0;
+        for (double b = 0.0; b + step <= totalBeats + 1.0e-6; b += step)
+        {
+            Note n;
+            n.startBeats = b;
+            n.lengthBeats = step * 0.9;
+            n.pitch = pitches[idx % pitches.size()];
+            n.velocity = 100;
+            notes.push_back (n);
+            ++idx;
+        }
+
+        writeBackToClip();
+    }
+
+    void PianoRollEditor::deleteSelected()
+    {
+        if (context.pushUndo) context.pushUndo();
+        notes.erase (std::remove_if (notes.begin(), notes.end(),
+                                     [] (const Note& n) { return n.selected; }),
+                     notes.end());
+        writeBackToClip();
+    }
+
+    void PianoRollEditor::timerCallback()
+    {
+        gridComp.repaint();
+    }
+
+    // ── Layout ───────────────────────────────────────────────────────────────────
+    void PianoRollEditor::paint (juce::Graphics& g)
+    {
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::panel));
+        g.fillRect (0, 0, getWidth(), toolbarH);
+    }
+
+    void PianoRollEditor::resized()
+    {
+        auto r = getLocalBounds();
+
+        auto toolbar = r.removeFromTop (toolbarH).reduced (8, 6);
+        closeButton.setBounds (toolbar.removeFromLeft (64));
+        toolbar.removeFromLeft (10);
+        titleLabel.setBounds (toolbar.removeFromLeft (260));
+        toolbar.removeFromLeft (10);
+        snapBox.setBounds (toolbar.removeFromLeft (70));
+        toolbar.removeFromLeft (8);
+        arpButton.setBounds (toolbar.removeFromLeft (60));
+        toolbar.removeFromLeft (6);
+        slideButton.setBounds (toolbar.removeFromLeft (60));
+
+        auto velArea = r.removeFromBottom (velLaneH);
+        velArea.removeFromLeft (gutterW);
+        velLane.setBounds (velArea);
+
+        keysViewport.setBounds (r.removeFromLeft (gutterW));
+        gridViewport.setBounds (r);
+
+        const int contentW = juce::jmax (getWidth(), beatsToX (clipLengthBeats()));
+        const int contentH = 128 * noteHeight;
+        gridComp.setSize (contentW, contentH);
+        keysComp.setSize (gutterW, contentH);
+
+        if (gridViewport.onScroll) gridViewport.onScroll();
+    }
+
+    // ── Keys gutter ──────────────────────────────────────────────────────────────
+    void PianoRollEditor::Keys::paint (juce::Graphics& g)
+    {
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::panelLight));
+        for (int pitch = 0; pitch < 128; ++pitch)
+        {
+            const int y = owner.pitchToY (pitch);
+            g.setColour (isBlackKey (pitch) ? juce::Colour (0xff15171c) : juce::Colour (0xff2a2e37));
+            g.fillRect (0, y, getWidth(), owner.noteHeight - 1);
+            if (pitch % 12 == 0) // C
+            {
+                g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+                g.setFont (juce::FontOptions (9.0f));
+                g.drawText ("C" + juce::String (pitch / 12 - 1), 2, y, getWidth() - 4, owner.noteHeight,
+                            juce::Justification::centredLeft, false);
+            }
+        }
+    }
+
+    // ── Grid ─────────────────────────────────────────────────────────────────────
+    int PianoRollEditor::Grid::noteAt (juce::Point<int> p) const
+    {
+        for (int i = (int) owner.notes.size(); --i >= 0;)
+        {
+            const auto& n = owner.notes[(size_t) i];
+            const int x = owner.beatsToX (n.startBeats);
+            const int w = juce::jmax (3, owner.beatsToX (n.lengthBeats));
+            const int y = owner.pitchToY (n.pitch);
+            if (juce::Rectangle<int> (x, y, w, owner.noteHeight).contains (p))
+                return i;
+        }
+        return -1;
+    }
+
+    bool PianoRollEditor::Grid::overRightEdge (int noteIndex, juce::Point<int> p) const
+    {
+        const auto& n = owner.notes[(size_t) noteIndex];
+        const int xEnd = owner.beatsToX (n.startBeats + n.lengthBeats);
+        return std::abs (p.x - xEnd) <= 5;
+    }
+
+    void PianoRollEditor::Grid::paint (juce::Graphics& g)
+    {
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+
+        // Row striping for black/white keys.
+        for (int pitch = 0; pitch < 128; ++pitch)
+        {
+            if (isBlackKey (pitch))
+            {
+                g.setColour (juce::Colour (0xff1b1e25));
+                g.fillRect (0, owner.pitchToY (pitch), getWidth(), owner.noteHeight);
+            }
+            g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (0.25f));
+            g.drawHorizontalLine (owner.pitchToY (pitch), 0.0f, (float) getWidth());
+        }
+
+        // Beat / bar grid lines.
+        const int beatsPerBar = juce::jmax (1, owner.context.project.getTimeline().getTimeSigNumerator());
+        const int totalBeats = (int) std::ceil (owner.clipLengthBeats());
+        for (int b = 0; b <= totalBeats; ++b)
+        {
+            const int x = owner.beatsToX ((double) b);
+            const bool bar = (b % beatsPerBar) == 0;
+            g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (bar ? 0.8f : 0.35f));
+            g.drawVerticalLine (x, 0.0f, (float) getHeight());
+        }
+
+        // Notes.
+        for (const auto& n : owner.notes)
+        {
+            const int x = owner.beatsToX (n.startBeats);
+            const int w = juce::jmax (3, owner.beatsToX (n.lengthBeats));
+            const int y = owner.pitchToY (n.pitch);
+            auto bounds = juce::Rectangle<int> (x, y, w, owner.noteHeight - 1).toFloat();
+
+            auto col = owner.track.colour;
+            g.setColour (n.slide ? col.withRotatedHue (0.1f) : col);
+            g.fillRoundedRectangle (bounds, 2.0f);
+            g.setColour (n.selected ? juce::Colours::white : col.darker (0.5f));
+            g.drawRoundedRectangle (bounds.reduced (0.5f), 2.0f, n.selected ? 1.6f : 0.8f);
+        }
+
+        // Playhead (relative to clip start).
+        const double tempo = owner.context.project.getTimeline().getTempoBpm();
+        const double clipStartBeats = owner.clip.startTime * tempo / 60.0;
+        const double playBeats = owner.context.engine.getTransport().getPositionSeconds() * tempo / 60.0 - clipStartBeats;
+        if (playBeats >= 0.0)
+        {
+            const int px = owner.beatsToX (playBeats);
+            g.setColour (juce::Colour (FreequencyLookAndFeel::accent));
+            g.drawVerticalLine (px, 0.0f, (float) getHeight());
+        }
+    }
+
+    void PianoRollEditor::Grid::mouseDown (const juce::MouseEvent& e)
+    {
+        const int idx = noteAt (e.getPosition());
+
+        if (e.mods.isRightButtonDown())
+        {
+            if (idx >= 0)
+            {
+                if (owner.context.pushUndo) owner.context.pushUndo();
+                owner.notes.erase (owner.notes.begin() + idx);
+                owner.writeBackToClip();
+            }
+            return;
+        }
+
+        if (idx < 0)
+        {
+            // Create a new note at the click.
+            if (owner.context.pushUndo) owner.context.pushUndo();
+            Note n;
+            n.startBeats = owner.snapBeats (owner.xToBeats (e.x));
+            n.pitch = owner.yToPitch (e.y);
+            n.lengthBeats = owner.snapGrid > 0 ? owner.snapGrid : 0.5;
+            n.velocity = 100;
+            n.slide = owner.slideMode;
+            owner.notes.push_back (n);
+            dragIndex = (int) owner.notes.size() - 1;
+            mode = Mode::move;
+        }
+        else
+        {
+            dragIndex = idx;
+            mode = overRightEdge (idx, e.getPosition()) ? Mode::resize : Mode::move;
+            if (owner.context.pushUndo) owner.context.pushUndo();
+        }
+
+        for (auto& n : owner.notes) n.selected = false;
+        if (dragIndex >= 0) owner.notes[(size_t) dragIndex].selected = true;
+
+        dragStart = e.getPosition();
+        if (dragIndex >= 0)
+        {
+            origStartBeats = owner.notes[(size_t) dragIndex].startBeats;
+            origLenBeats = owner.notes[(size_t) dragIndex].lengthBeats;
+            origPitch = owner.notes[(size_t) dragIndex].pitch;
+        }
+        repaint();
+    }
+
+    void PianoRollEditor::Grid::mouseDrag (const juce::MouseEvent& e)
+    {
+        if (dragIndex < 0) return;
+        auto& n = owner.notes[(size_t) dragIndex];
+
+        if (mode == Mode::resize)
+        {
+            const double endBeats = owner.snapBeats (owner.xToBeats (e.x));
+            n.lengthBeats = juce::jmax (owner.snapGrid > 0 ? owner.snapGrid : 0.0625, endBeats - n.startBeats);
+        }
+        else if (mode == Mode::move)
+        {
+            const double deltaBeats = owner.xToBeats (e.x) - owner.xToBeats (dragStart.x);
+            n.startBeats = owner.snapBeats (origStartBeats + deltaBeats);
+            n.pitch = owner.yToPitch (e.y);
+        }
+        repaint();
+    }
+
+    void PianoRollEditor::Grid::mouseUp (const juce::MouseEvent&)
+    {
+        if (dragIndex >= 0)
+            owner.writeBackToClip();
+        dragIndex = -1;
+        mode = Mode::none;
+    }
+
+    void PianoRollEditor::Grid::mouseDoubleClick (const juce::MouseEvent& e)
+    {
+        // Double-click a note to delete it.
+        const int idx = noteAt (e.getPosition());
+        if (idx >= 0)
+        {
+            if (owner.context.pushUndo) owner.context.pushUndo();
+            owner.notes.erase (owner.notes.begin() + idx);
+            owner.writeBackToClip();
+        }
+    }
+
+    // ── Velocity lane ────────────────────────────────────────────────────────────
+    void PianoRollEditor::VelLane::paint (juce::Graphics& g)
+    {
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.drawHorizontalLine (0, 0.0f, (float) getWidth());
+
+        for (const auto& n : owner.notes)
+        {
+            const int x = owner.beatsToX (n.startBeats) - viewOffsetX;
+            if (x < -4 || x > getWidth()) continue;
+            const int h = (int) ((float) n.velocity / 127.0f * (getHeight() - 6));
+            g.setColour (owner.track.colour.withAlpha (n.selected ? 1.0f : 0.7f));
+            g.fillRect (x, getHeight() - h - 2, 4, h);
+        }
+    }
+
+    void PianoRollEditor::VelLane::setVel (const juce::MouseEvent& e)
+    {
+        const double beats = owner.xToBeats (e.x + viewOffsetX);
+        // Find the nearest note by start position.
+        int best = -1; double bestDist = 0.4; // within ~half a beat
+        for (int i = 0; i < (int) owner.notes.size(); ++i)
+        {
+            const double d = std::abs (owner.notes[(size_t) i].startBeats - beats);
+            if (d < bestDist) { bestDist = d; best = i; }
+        }
+        if (best < 0) return;
+
+        const float v = 1.0f - (float) e.y / (float) juce::jmax (1, getHeight());
+        owner.notes[(size_t) best].velocity = juce::jlimit (1, 127, (int) std::round (v * 127.0f));
+        owner.writeBackToClip();
+    }
+} // namespace freequency::ui
