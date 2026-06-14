@@ -4,7 +4,7 @@
 
 #include <atomic>
 
-namespace freequency::engine
+namespace freequency::dsp
 {
     /**
         LimiterProcessor — a brick-wall limiter on the master output.
@@ -54,4 +54,4 @@ namespace freequency::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LimiterProcessor)
     };
-} // namespace freequency::engine
+} // namespace freequency::dsp

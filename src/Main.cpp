@@ -7,6 +7,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <iostream>
+#include <variant>
 
 /*
     Application entry point for FREEQUENCY.
@@ -141,6 +142,29 @@ namespace freequency
                 const float clickPeak = clickEngine.renderOfflinePeak (44100.0, 1.0);
                 std::cout << "FREEQUENCY self-test: metronome peak = " << clickPeak
                           << (clickPeak > 0.01f ? "  [PASS]" : "  [FAIL: no click]") << std::endl;
+            }
+
+            // Hybrid model check: FL pattern (step + note channels) and the new
+            // Cubase-style Bus/VCA track types construct and behave correctly.
+            {
+                models::Project p;
+                auto& pat = p.addPattern();
+                auto& kick = pat.addStepChannel ("Kick", 36);
+                if (auto* seq = std::get_if<models::StepSequence> (&kick.content))
+                    if (! seq->steps.empty()) seq->steps[0].on = true;
+                pat.addNoteChannel ("Lead");
+
+                p.getTimeline().addBusTrack();
+                auto* vca = p.getTimeline().addVCATrack();
+                vca->addControlledTrack ("dummy-id");
+
+                const bool ok = p.getNumPatterns() == 1
+                                && pat.getNumChannels() == 2
+                                && kick.isStepChannel()
+                                && p.getTimeline().getNumTracks() == 2
+                                && vca->getControlledTrackIds().size() == 1;
+                std::cout << "FREEQUENCY self-test: hybrid model "
+                          << (ok ? "[PASS]" : "[FAIL]") << std::endl;
             }
         }
 

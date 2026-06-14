@@ -134,7 +134,7 @@ namespace freequency::engine
 
         // Master bus -> brick-wall limiter -> output. The limiter is a safety net
         // that keeps the final mix from clipping the converter.
-        limiterNode = graph.addNode (std::make_unique<LimiterProcessor>());
+        limiterNode = graph.addNode (std::make_unique<dsp::LimiterProcessor>());
         connectStereo (masterNode->nodeID, limiterNode->nodeID);
         connectStereo (limiterNode->nodeID, audioOutputNode->nodeID);
 
@@ -196,7 +196,7 @@ namespace freequency::engine
             }
         }
 
-        return graph.addNode (std::make_unique<SynthProcessor>())->nodeID;
+        return graph.addNode (std::make_unique<dsp::SynthProcessor>())->nodeID;
     }
 
     void AudioEngine::addTrackChain (models::Track& track)
@@ -209,8 +209,11 @@ namespace freequency::engine
         connectStereo (chain.strip, masterNode->nodeID);
 
         // Head of the audio portion of the chain: instrument output (MIDI) or
-        // clip-player output (audio).
+        // clip-player output (audio). Bus/VCA tracks have no clip source in this
+        // phase (their summing/control routing is built in Phase 2), so they get
+        // only a strip.
         NodeID lastAudioNode;
+        bool hasSource = false;
 
         if (track.getType() == models::TrackType::midi)
         {
@@ -221,33 +224,38 @@ namespace freequency::engine
             connectMidi (chain.source, chain.instrument);
 
             lastAudioNode = chain.instrument;
+            hasSource = true;
         }
-        else
+        else if (track.getType() == models::TrackType::audio)
         {
             auto sourceNode = graph.addNode (std::make_unique<AudioClipProcessor> (transport));
             chain.source = sourceNode->nodeID;
             lastAudioNode = chain.source;
+            hasSource = true;
         }
 
-        // Insert FX chain: a series of hosted effect plugins between the source/
-        // instrument and the channel strip.
-        for (const auto& identifier : track.insertPluginIdentifiers)
+        if (hasSource)
         {
-            juce::String error;
-            auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
-            if (fx == nullptr)
+            // Insert FX chain: a series of hosted effect plugins between the
+            // source/instrument and the channel strip.
+            for (const auto& identifier : track.insertPluginIdentifiers)
             {
-                DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
-                continue;
+                juce::String error;
+                auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
+                if (fx == nullptr)
+                {
+                    DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
+                    continue;
+                }
+
+                auto fxNode = graph.addNode (std::move (fx));
+                connectStereo (lastAudioNode, fxNode->nodeID);
+                lastAudioNode = fxNode->nodeID;
+                chain.inserts.push_back (fxNode->nodeID);
             }
 
-            auto fxNode = graph.addNode (std::move (fx));
-            connectStereo (lastAudioNode, fxNode->nodeID);
-            lastAudioNode = fxNode->nodeID;
-            chain.inserts.push_back (fxNode->nodeID);
+            connectStereo (lastAudioNode, chain.strip);
         }
-
-        connectStereo (lastAudioNode, chain.strip);
 
         // Sends: post-fader taps from the strip to destination buses. Each send is
         // its own gain node (a TrackProcessor used purely as a gain stage) so its
@@ -500,7 +508,7 @@ namespace freequency::engine
 
         if (limiterNode != nullptr)
             if (auto* node = graph.getNodeForId (limiterNode->nodeID))
-                if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+                if (auto* l = dynamic_cast<dsp::LimiterProcessor*> (node->getProcessor()))
                     l->setEnabled (limiterOn);
     }
 
@@ -525,7 +533,7 @@ namespace freequency::engine
     {
         limiterOn = e;
         if (auto* node = graph.getNodeForId (limiterNode->nodeID))
-            if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+            if (auto* l = dynamic_cast<dsp::LimiterProcessor*> (node->getProcessor()))
                 l->setEnabled (e);
     }
 
@@ -533,7 +541,7 @@ namespace freequency::engine
     {
         if (limiterNode != nullptr)
             if (auto* node = graph.getNodeForId (limiterNode->nodeID))
-                if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+                if (auto* l = dynamic_cast<dsp::LimiterProcessor*> (node->getProcessor()))
                     return l->isEnabled();
         return false;
     }

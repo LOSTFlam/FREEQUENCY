@@ -1,8 +1,8 @@
-#include "Engine/SynthProcessor.h"
+#include "DSP/SynthProcessor.h"
 
 #include <cmath>
 
-namespace freequency::engine
+namespace freequency::dsp
 {
     namespace
     {
@@ -151,4 +151,4 @@ namespace freequency::engine
         buffer.clear();
         synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
     }
-} // namespace freequency::engine
+} // namespace freequency::dsp

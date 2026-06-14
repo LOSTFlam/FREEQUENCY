@@ -18,4 +18,10 @@ namespace freequency::models
     {
         name = "MIDI Clip";
     }
+
+    PatternClip::PatternClip()
+        : Clip (ClipType::pattern)
+    {
+        name = "Pattern Clip";
+    }
 } // namespace freequency::models

@@ -2,7 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-namespace freequency::engine
+namespace freequency::dsp
 {
     /**
         SynthProcessor — FREEQUENCY's built-in polyphonic instrument.
@@ -55,4 +55,4 @@ namespace freequency::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SynthProcessor)
     };
-} // namespace freequency::engine
+} // namespace freequency::dsp

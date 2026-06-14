@@ -5,9 +5,9 @@
 #include "Engine/TrackProcessor.h"
 #include "Engine/MidiSourceProcessor.h"
 #include "Engine/AudioClipProcessor.h"
-#include "Engine/SynthProcessor.h"
+#include "DSP/SynthProcessor.h"
+#include "DSP/LimiterProcessor.h"
 #include "Engine/MetronomeProcessor.h"
-#include "Engine/LimiterProcessor.h"
 #include "Engine/PluginManager.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>

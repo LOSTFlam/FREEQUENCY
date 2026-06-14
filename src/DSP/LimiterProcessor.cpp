@@ -1,8 +1,8 @@
-#include "Engine/LimiterProcessor.h"
+#include "DSP/LimiterProcessor.h"
 
 #include <cmath>
 
-namespace freequency::engine
+namespace freequency::dsp
 {
     LimiterProcessor::LimiterProcessor()
         : AudioProcessor (BusesProperties()
@@ -55,4 +55,4 @@ namespace freequency::engine
                 buffer.setSample (ch, i, buffer.getSample (ch, i) * currentGain);
         }
     }
-} // namespace freequency::engine
+} // namespace freequency::dsp

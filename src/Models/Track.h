@@ -13,7 +13,9 @@ namespace freequency::models
     enum class TrackType
     {
         audio,
-        midi
+        midi,
+        bus,   // group / summing track (Cubase Group Channel)
+        vca    // VCA control track (no audio; scales member faders)
     };
 
     /**

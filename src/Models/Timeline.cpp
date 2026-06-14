@@ -18,6 +18,22 @@ namespace freequency::models
         return track;
     }
 
+    BusTrack* Timeline::addBusTrack()
+    {
+        auto* track = new BusTrack();
+        track->colour = defaults::nextTrackColour (tracks.size());
+        tracks.add (track);
+        return track;
+    }
+
+    VCATrack* Timeline::addVCATrack()
+    {
+        auto* track = new VCATrack();
+        track->colour = defaults::nextTrackColour (tracks.size());
+        tracks.add (track);
+        return track;
+    }
+
     bool Timeline::removeTrack (const ObjectId& trackId)
     {
         for (int i = 0; i < tracks.size(); ++i)

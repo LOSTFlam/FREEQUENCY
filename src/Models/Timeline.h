@@ -3,6 +3,8 @@
 #include "Core/Types.h"
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
+#include "Models/BusTrack.h"
+#include "Models/VCATrack.h"
 
 namespace freequency::models
 {
@@ -21,6 +23,8 @@ namespace freequency::models
         // ── Tracks ────────────────────────────────────────────────────────────
         AudioTrack* addAudioTrack();
         MidiTrack*  addMidiTrack();
+        BusTrack*   addBusTrack();
+        VCATrack*   addVCATrack();
 
         /** Removes a track by id. Returns true if a track was removed. */
         bool removeTrack (const ObjectId& trackId);
