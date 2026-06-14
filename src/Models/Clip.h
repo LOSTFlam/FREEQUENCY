@@ -95,6 +95,12 @@ namespace freequency::models
 
         /** Play the clip's audio backwards. */
         bool reversed { false };
+
+        /** Time-stretch ratio (1 = original; >1 = longer/slower, pitch preserved). */
+        double stretchRatio { 1.0 };
+
+        /** Pitch shift in semitones (length preserved). */
+        int pitchSemitones { 0 };
     };
 
     /**

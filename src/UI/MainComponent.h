@@ -66,6 +66,8 @@ namespace freequency::ui
         void splitSelectedClipAtPlayhead();
         void deleteSelectedClip();
         void reverseSelectedClip();
+        void pitchSelectedClip (int semitones);
+        void stretchSelectedClip (double factor);
         void nudgeSelectedClip (int direction);
         void movePlayheadByBar (int direction);
         void changeTempo (double delta);

@@ -15,7 +15,8 @@ namespace freequency::ui
             toggleMixerView, addAudioTrack, addMidiTrack, saveProject, openProject,
             openKeyMappings, duplicateClip, splitClip, deleteClip, reverseClip, nudgeLeft, nudgeRight,
             playheadLeft, playheadRight, tempoUp, tempoDown, toggleKeyboardPiano,
-            octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser, openAppearance
+            octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser, openAppearance,
+            clipPitchUp, clipPitchDown, clipStretchUp, clipStretchDown
         };
     }
 
@@ -195,7 +196,9 @@ namespace freequency::ui
             CommandIDs::playheadRight, CommandIDs::tempoUp, CommandIDs::tempoDown,
             CommandIDs::toggleKeyboardPiano, CommandIDs::octaveUp, CommandIDs::octaveDown,
             CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings,
-            CommandIDs::toggleBrowser, CommandIDs::openAppearance });
+            CommandIDs::toggleBrowser, CommandIDs::openAppearance,
+            CommandIDs::clipPitchUp, CommandIDs::clipPitchDown,
+            CommandIDs::clipStretchUp, CommandIDs::clipStretchDown });
     }
 
     void MainComponent::getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& r)
@@ -233,6 +236,10 @@ namespace freequency::ui
             case CommandIDs::openAudioSettings: r.setInfo ("Audio Settings…", "Choose device / sample rate / buffer", vw, 0); r.addDefaultKeypress (KeyPress::F1Key, 0); break;
             case CommandIDs::toggleBrowser:   r.setInfo ("Toggle Browser", "Media/sample browser", vw, 0); r.addDefaultKeypress (KeyPress::F2Key, 0); break;
             case CommandIDs::openAppearance:  r.setInfo ("Appearance / Theme…", "Change the look", vw, 0); r.addDefaultKeypress (KeyPress::F3Key, 0); break;
+            case CommandIDs::clipPitchUp:     r.setInfo ("Audio Clip Pitch +1", "", ed, 0); r.addDefaultKeypress (KeyPress::upKey, ModifierKeys::commandModifier); break;
+            case CommandIDs::clipPitchDown:   r.setInfo ("Audio Clip Pitch -1", "", ed, 0); r.addDefaultKeypress (KeyPress::downKey, ModifierKeys::commandModifier); break;
+            case CommandIDs::clipStretchUp:   r.setInfo ("Audio Clip Stretch +", "Lengthen (warp)", ed, 0); r.addDefaultKeypress (KeyPress::rightKey, ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
+            case CommandIDs::clipStretchDown: r.setInfo ("Audio Clip Stretch -", "Shorten (warp)", ed, 0); r.addDefaultKeypress (KeyPress::leftKey, ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
 
             case CommandIDs::toggleKeyboardPiano: r.setInfo ("Computer-Keyboard Piano", "Play instruments via QWERTY", in, 0); r.addDefaultKeypress (KeyPress::tabKey, 0); break;
             case CommandIDs::octaveUp:        r.setInfo ("Piano Octave +", "", in, 0); r.addDefaultKeypress ('x', 0); break;
@@ -283,6 +290,10 @@ namespace freequency::ui
             case CommandIDs::toggleKeyboardPiano: pianoEnabled = ! pianoEnabled; if (! pianoEnabled) allPianoNotesOff(); break;
             case CommandIDs::octaveUp:        allPianoNotesOff(); pianoOctave = juce::jmin (9, pianoOctave + 1); break;
             case CommandIDs::octaveDown:      allPianoNotesOff(); pianoOctave = juce::jmax (0, pianoOctave - 1); break;
+            case CommandIDs::clipPitchUp:     pitchSelectedClip (1); break;
+            case CommandIDs::clipPitchDown:   pitchSelectedClip (-1); break;
+            case CommandIDs::clipStretchUp:   stretchSelectedClip (1.25); break;
+            case CommandIDs::clipStretchDown: stretchSelectedClip (0.8); break;
             default: return false;
         }
         return true;
@@ -586,6 +597,25 @@ namespace freequency::ui
         pushUndo();
         track->removeClip (clip);
         context.selectedClip = nullptr;
+        afterClipChange();
+    }
+
+    void MainComponent::pitchSelectedClip (int semitones)
+    {
+        auto* clip = dynamic_cast<models::AudioClip*> (context.selectedClip);
+        if (clip == nullptr) return;
+        pushUndo();
+        clip->pitchSemitones = juce::jlimit (-24, 24, clip->pitchSemitones + semitones);
+        afterClipChange();
+    }
+
+    void MainComponent::stretchSelectedClip (double factor)
+    {
+        auto* clip = dynamic_cast<models::AudioClip*> (context.selectedClip);
+        if (clip == nullptr) return;
+        pushUndo();
+        clip->stretchRatio = juce::jlimit (0.25, 4.0, clip->stretchRatio * factor);
+        if (clip->length > 0.0) clip->length *= factor; // clip resizes on the timeline
         afterClipChange();
     }
 
