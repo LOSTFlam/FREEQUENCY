@@ -1,5 +1,6 @@
 #include "UI/FrequencyFieldEditor.h"
 #include "Engine/VariAudioResynth.h"
+#include "Engine/WarpMapper.h"
 #include "Models/MidiTrack.h"
 #include "Models/PatternExpander.h"
 
@@ -41,7 +42,7 @@ namespace freequency::ui
     }
 
     FrequencyFieldEditor::FrequencyFieldEditor (UIContext& ctx, models::AudioClip& c, models::Track& t)
-        : context (ctx), clip (c), track (t), canvas (*this)
+        : context (ctx), clip (c), track (t), canvas (*this), warpStrip (*this)
     {
         addAndMakeVisible (titleLabel);
         titleLabel.setText ("Frequency Field — " + clip.name, juce::dontSendNotification);
@@ -82,12 +83,34 @@ namespace freequency::ui
         bakeButton.setColour (juce::TextButton::buttonColourId, theme().accent.withAlpha (0.35f));
         bakeButton.onClick = [this] { bakeToSnapshot(); };
 
+        addAndMakeVisible (warpModeButton);
+        warpModeButton.setColour (juce::TextButton::buttonOnColourId, theme().accentWarm.withAlpha (0.6f));
+
+        addAndMakeVisible (formantLabel);
+        formantLabel.setText ("Formant", juce::dontSendNotification);
+        formantLabel.setFont (juce::FontOptions (10.0f));
+        formantLabel.setColour (juce::Label::textColourId, theme().textDim);
+
+        addAndMakeVisible (formantSlider);
+        formantSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        formantSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 18);
+        formantSlider.setRange (-6.0, 6.0, 0.1);
+        formantSlider.setValue (0.0, juce::dontSendNotification);
+        formantSlider.onValueChange = [this]
+        {
+            if (dragAnchorIndex < 0 || dragAnchorIndex >= (int) clip.variAudioSegments.size())
+                return;
+            if (context.pushUndo) context.pushUndo();
+            clip.variAudioSegments[(size_t) dragAnchorIndex].formantShift = (float) formantSlider.getValue();
+            context.engine.rebuildSequences();
+        };
+
         addAndMakeVisible (statusLabel);
         statusLabel.setFont (juce::FontOptions (11.0f));
         statusLabel.setColour (juce::Label::textColourId, theme().accent);
 
         addAndMakeVisible (hintLabel);
-        hintLabel.setText ("Click = anchor · drag = move · right-click / Del = remove · Bake = resynth",
+        hintLabel.setText ("Anchor: click/drag · Warp: toggle + strip · Formant on selected anchor",
                            juce::dontSendNotification);
         hintLabel.setFont (juce::FontOptions (11.0f));
         hintLabel.setColour (juce::Label::textColourId, theme().textDim);
@@ -96,9 +119,13 @@ namespace freequency::ui
         viewport.setViewedComponent (&canvas, false);
         viewport.setScrollBarsShown (true, false);
 
+        addAndMakeVisible (warpStrip);
+
         loadPreviewAudio();
+        ensureWarpEndpoints();
         loadGhostNotes();
         refreshContour();
+        syncFormantSlider();
         startTimerHz (30);
         setWantsKeyboardFocus (true);
     }
@@ -124,6 +151,64 @@ namespace freequency::ui
         const int ch = (int) juce::jmax ((juce::uint32) 1, reader->numChannels);
         previewBuffer.setSize (ch, len);
         reader->read (&previewBuffer, 0, len, 0, true, true);
+    }
+
+    void FrequencyFieldEditor::ensureWarpEndpoints()
+    {
+        engine::WarpMapper::ensureEndpoints (clip.warpMarkers, clipLengthSec(), sourceLengthSec());
+    }
+
+    double FrequencyFieldEditor::sourceLengthSec() const
+    {
+        if (previewBuffer.getNumSamples() > 0 && previewSampleRate > 0.0)
+            return (double) previewBuffer.getNumSamples() / previewSampleRate;
+        return clipLengthSec() * clip.stretchRatio;
+    }
+
+    int FrequencyFieldEditor::timeToXInStrip (double relSec, int stripWidth) const
+    {
+        const double len = clipLengthSec();
+        return (int) std::llround ((relSec / len) * (double) stripWidth);
+    }
+
+    double FrequencyFieldEditor::timeAtXInStrip (int x, int stripWidth) const
+    {
+        const double len = clipLengthSec();
+        return juce::jlimit (0.0, len, (double) x / (double) juce::jmax (1, stripWidth) * len);
+    }
+
+    int FrequencyFieldEditor::findWarpAt (int x) const
+    {
+        const int w = warpStrip.getWidth();
+        for (int i = 0; i < (int) clip.warpMarkers.size(); ++i)
+        {
+            const int wx = timeToXInStrip (clip.warpMarkers[(size_t) i].timelineTime, w);
+            if (std::abs (x - wx) <= 7)
+                return i;
+        }
+        return -1;
+    }
+
+    void FrequencyFieldEditor::removeWarp (int index)
+    {
+        if (index < 0 || index >= (int) clip.warpMarkers.size())
+            return;
+        if (context.pushUndo) context.pushUndo();
+        clip.warpMarkers.erase (clip.warpMarkers.begin() + index);
+        ensureWarpEndpoints();
+        context.engine.rebuildSequences();
+        warpStrip.repaint();
+        statusLabel.setText ("Warp marker removed", juce::dontSendNotification);
+    }
+
+    void FrequencyFieldEditor::syncFormantSlider()
+    {
+        const bool show = dragAnchorIndex >= 0 && dragAnchorIndex < (int) clip.variAudioSegments.size();
+        formantSlider.setVisible (show);
+        formantLabel.setVisible (show);
+        if (show)
+            formantSlider.setValue (clip.variAudioSegments[(size_t) dragAnchorIndex].formantShift,
+                                    juce::dontSendNotification);
     }
 
     void FrequencyFieldEditor::refreshContour()
@@ -315,7 +400,11 @@ namespace freequency::ui
         bar.removeFromRight (6);
         bakeButton.setBounds (bar.removeFromRight (64).reduced (0, 4));
         bar.removeFromRight (6);
-        elasticBox.setBounds (bar.removeFromRight (130).reduced (0, 4));
+        formantSlider.setBounds (bar.removeFromRight (150).reduced (0, 8));
+        formantLabel.setBounds (bar.removeFromRight (52));
+        warpModeButton.setBounds (bar.removeFromRight (58).reduced (0, 4));
+        bar.removeFromRight (6);
+        elasticBox.setBounds (bar.removeFromRight (120).reduced (0, 4));
         bar.removeFromRight (8);
         ghostButton.setBounds (bar.removeFromRight (120));
 
@@ -323,6 +412,7 @@ namespace freequency::ui
         hintLabel.setBounds (footer.removeFromLeft (getWidth() * 2 / 3));
         statusLabel.setBounds (footer);
 
+        warpStrip.setBounds (r.removeFromBottom (warpStripH).reduced (8, 0));
         viewport.setBounds (r.reduced (8));
 
         const int canvasH = (pitchMax - pitchMin + 1) * pitchRowH;
@@ -341,10 +431,17 @@ namespace freequency::ui
 
         if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
         {
+            if (dragWarpIndex >= 0)
+            {
+                removeWarp (dragWarpIndex);
+                dragWarpIndex = -1;
+                return true;
+            }
             if (dragAnchorIndex >= 0)
             {
                 removeAnchor (dragAnchorIndex);
                 dragAnchorIndex = -1;
+                syncFormantSlider();
                 return true;
             }
         }
@@ -367,6 +464,9 @@ namespace freequency::ui
 
     void FrequencyFieldEditor::FieldCanvas::mouseDown (const juce::MouseEvent& e)
     {
+        if (owner.warpModeButton.getToggleState())
+            return;
+
         if (e.mods.isRightButtonDown())
         {
             const int idx = owner.findAnchorAt (e.x, e.y);
@@ -390,6 +490,7 @@ namespace freequency::ui
         if (owner.context.pushUndo) owner.context.pushUndo();
         owner.clip.variAudioSegments.push_back (seg);
         owner.dragAnchorIndex = (int) owner.clip.variAudioSegments.size() - 1;
+        owner.syncFormantSlider();
         owner.context.engine.rebuildSequences();
         owner.statusLabel.setText ("Anchor added — drag to refine", juce::dontSendNotification);
         repaint();
@@ -415,7 +516,105 @@ namespace freequency::ui
     {
         if (owner.dragAnchorIndex >= 0)
             owner.statusLabel.setText ("Pitch correction updated", juce::dontSendNotification);
+        owner.syncFormantSlider();
         owner.dragAnchorIndex = -1;
+    }
+
+    void FrequencyFieldEditor::WarpStrip::mouseDown (const juce::MouseEvent& e)
+    {
+        if (e.mods.isRightButtonDown())
+        {
+            const int idx = owner.findWarpAt (e.x);
+            if (idx >= 0)
+                owner.removeWarp (idx);
+            return;
+        }
+
+        owner.dragWarpIndex = owner.findWarpAt (e.x);
+        if (owner.dragWarpIndex >= 0)
+            return;
+
+        if (owner.context.pushUndo) owner.context.pushUndo();
+
+        models::WarpMarker wm;
+        wm.timelineTime = owner.timeAtXInStrip (e.x, getWidth());
+        wm.sourceTime = engine::WarpMapper::timelineToSource (wm.timelineTime,
+                                                              owner.clip.warpMarkers,
+                                                              owner.clipLengthSec(),
+                                                              owner.sourceLengthSec(),
+                                                              owner.clip.stretchRatio);
+        owner.clip.warpMarkers.push_back (wm);
+        owner.dragWarpIndex = (int) owner.clip.warpMarkers.size() - 1;
+        owner.context.engine.rebuildSequences();
+        owner.statusLabel.setText ("Warp marker added", juce::dontSendNotification);
+        repaint();
+    }
+
+    void FrequencyFieldEditor::WarpStrip::mouseDrag (const juce::MouseEvent& e)
+    {
+        if (owner.dragWarpIndex < 0 || owner.dragWarpIndex >= (int) owner.clip.warpMarkers.size())
+            return;
+
+        auto& wm = owner.clip.warpMarkers[(size_t) owner.dragWarpIndex];
+        wm.timelineTime = owner.timeAtXInStrip (e.x, getWidth());
+        const double yNorm = 1.0 - juce::jlimit (0.0, 1.0, (double) e.y / (double) juce::jmax (1, getHeight()));
+        wm.sourceTime = yNorm * owner.sourceLengthSec();
+        owner.context.engine.rebuildSequences();
+        repaint();
+    }
+
+    void FrequencyFieldEditor::WarpStrip::mouseUp (const juce::MouseEvent&)
+    {
+        owner.ensureWarpEndpoints();
+        owner.dragWarpIndex = -1;
+    }
+
+    void FrequencyFieldEditor::WarpStrip::paint (juce::Graphics& g)
+    {
+        const auto& th = theme();
+        const int w = getWidth();
+        const int h = getHeight();
+
+        juce::ColourGradient grad (th.panel.darker (0.1f), 0.0f, 0.0f,
+                                   th.panelLight.withAlpha (0.35f), (float) w, (float) h, false);
+        g.setGradientFill (grad);
+        g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
+
+        juce::Path mapPath;
+        const int steps = juce::jmax (16, w / 6);
+        for (int i = 0; i <= steps; ++i)
+        {
+            const double t = owner.clipLengthSec() * (double) i / (double) steps;
+            const double src = engine::WarpMapper::timelineToSource (t,
+                                                                     owner.clip.warpMarkers,
+                                                                     owner.clipLengthSec(),
+                                                                     owner.sourceLengthSec(),
+                                                                     owner.clip.stretchRatio);
+            const float x = (float) owner.timeToXInStrip (t, w);
+            const float y = (float) h - (float) (src / owner.sourceLengthSec()) * (float) (h - 8) - 4.0f;
+            if (i == 0) mapPath.startNewSubPath (x, y);
+            else        mapPath.lineTo (x, y);
+        }
+        g.setColour (th.accent.withAlpha (0.75f));
+        g.strokePath (mapPath, juce::PathStrokeType (2.0f));
+
+        for (int i = 0; i < (int) owner.clip.warpMarkers.size(); ++i)
+        {
+            const auto& wm = owner.clip.warpMarkers[(size_t) i];
+            const float x = (float) owner.timeToXInStrip (wm.timelineTime, w);
+            const float y = (float) h - (float) (wm.sourceTime / owner.sourceLengthSec()) * (float) (h - 8) - 4.0f;
+            const bool sel = i == owner.dragWarpIndex;
+            g.setColour (sel ? th.accentWarm : th.accent);
+            g.fillEllipse (x - 6.0f, y - 6.0f, 12.0f, 12.0f);
+            g.drawVerticalLine ((int) x, 0.0f, (float) h);
+        }
+
+        g.setColour (th.outline.withAlpha (0.7f));
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 4.0f, 1.0f);
+        g.setColour (th.textDim);
+        g.setFont (juce::FontOptions (9.0f));
+        g.drawText ("Warp map — drag marker vertically for source time", getLocalBounds().reduced (8, 0),
+                    juce::Justification::centredLeft, false);
     }
 
     void FrequencyFieldEditor::FieldCanvas::paint (juce::Graphics& g)

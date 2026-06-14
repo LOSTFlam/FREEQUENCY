@@ -108,6 +108,7 @@ Animated spectral overlays teach the workspace layout:
 | C | Ghost notes in piano roll + PatternClip engine playback | ✅ |
 | D | Swipe comp crossfade (lane UI + snapshot mix) | ✅ |
 | E | VariAudio segments + offline resynth bake | ✅ |
-| F | Portamento slide curves (MIDI export + synth) | ⏳ |
+| F | Portamento slide curves (MIDI export + synth) | ✅ |
 | G | Real-time elastic preview node | ✅ |
 | H | Frequency Field editor (interactive pitch/contour + bake) | ✅ |
+| I | Warp markers + formant preservation + RT OLA | ✅ |

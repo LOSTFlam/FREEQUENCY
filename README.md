@@ -200,5 +200,5 @@ printing `[PASS]` for each.
   comping (take switching + swipe crossfade), PatternClip playback, ghost notes ✅
 - **Frequency Field** editor — pitch grid, detected contour, drag VariAudio anchors, bake ✅
 - VariAudio **offline resynth bake** (snapshot) ✅ · **real-time elastic** preview node ✅
-- Next: portamento slides, warp marker editing, formant preservation
+- **Portamento slides**, **warp marker editing**, **formant preservation**, pitch-preserving RT OLA ✅
 - Design: [FREEQUENCY — Spectral UI (Figma)](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)

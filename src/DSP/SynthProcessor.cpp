@@ -75,8 +75,8 @@ namespace freequency::dsp
 
             void pitchWheelMoved (int value) override
             {
-                // +/- 2 semitone range; 8192 == centre (no bend).
-                const double semis = (value - 8192) / 8192.0 * 2.0;
+                // +/- 12 semitone pitch-wheel range; 8192 == centre.
+                const double semis = (value - 8192) / 8192.0 * 12.0;
                 pitchBend = std::pow (2.0, semis / 12.0);
             }
             void controllerMoved (int, int) override {}

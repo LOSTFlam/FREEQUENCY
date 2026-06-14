@@ -95,14 +95,17 @@ freequency_add_library(FreequencyDSP
     DSP/SynthProcessor.cpp
     DSP/LimiterProcessor.cpp
     DSP/BuiltinEffects.cpp
-    DSP/TimeStretch.cpp
-    DSP/RtElasticStretch.cpp)
+    DSP/TimeStretch.cpp)
 
 # ── FreequencyEngine — real-time audio graph, transport, sequencing ─────────────
 freequency_add_library(FreequencyEngine
     Engine/AudioEngine.cpp
     Engine/CompSwipeMixer.cpp
     Engine/VariAudioResynth.cpp
+    Engine/PortamentoExpander.cpp
+    Engine/WarpMapper.cpp
+    Engine/WarpBake.cpp
+    Engine/RtElasticStretch.cpp
     Engine/TrackProcessor.cpp
     Engine/MidiSourceProcessor.cpp
     Engine/AudioClipProcessor.cpp

@@ -104,6 +104,40 @@ namespace freequency::engine
         return hzToCentsFromC4 (hz);
     }
 
+    double VariAudioResynth::formantShiftAt (const std::vector<models::VariAudioSegment>& segments,
+                                             double timeSec,
+                                             double clipLengthSec)
+    {
+        if (segments.empty())
+            return 0.0;
+
+        auto sorted = segments;
+        std::sort (sorted.begin(), sorted.end(),
+                   [] (const models::VariAudioSegment& a, const models::VariAudioSegment& b)
+                   { return a.time < b.time; });
+
+        if (timeSec <= sorted.front().time)
+            return (double) sorted.front().formantShift;
+
+        if (timeSec >= sorted.back().time)
+            return (double) sorted.back().formantShift;
+
+        for (size_t i = 1; i < sorted.size(); ++i)
+        {
+            const auto& a = sorted[i - 1];
+            const auto& b = sorted[i];
+            if (timeSec >= a.time && timeSec <= b.time)
+            {
+                const double span = juce::jmax (1.0e-9, b.time - a.time);
+                const double t = (timeSec - a.time) / span;
+                return (double) a.formantShift + t * ((double) b.formantShift - (double) a.formantShift);
+            }
+        }
+
+        juce::ignoreUnused (clipLengthSec);
+        return 0.0;
+    }
+
     double VariAudioResynth::correctionCentsAt (const std::vector<models::VariAudioSegment>& segments,
                                                 double timeSec,
                                                 double clipLengthSec)
@@ -154,20 +188,47 @@ namespace freequency::engine
         const int len = in.getNumSamples();
 
         std::vector<double> readPos ((size_t) channels, 0.0);
+        auto pitched = std::make_unique<juce::AudioBuffer<float>> (channels, len);
+        pitched->clear();
 
         for (int i = 0; i < len; ++i)
         {
             const double t = (double) i / sampleRate;
             const double cents = correctionCentsAt (segments, t, clipLengthSec);
-            const double formant = segments.empty() ? 0.0 : 0.0; // reserved
-            juce::ignoreUnused (formant);
-
             const double ratio = std::pow (2.0, cents / 1200.0);
 
             for (int ch = 0; ch < channels; ++ch)
             {
-                (*out).setSample (ch, i, readInterpolated (in, ch, readPos[(size_t) ch]));
+                pitched->setSample (ch, i, readInterpolated (in, ch, readPos[(size_t) ch]));
                 readPos[(size_t) ch] += ratio;
+            }
+        }
+
+        // Formant preservation: blend low-band resample with user/auto formant shift.
+        const float lpCoeff = 0.08f;
+        for (int ch = 0; ch < channels; ++ch)
+        {
+            float lp = 0.0f;
+            double formantRead = 0.0;
+
+            for (int i = 0; i < len; ++i)
+            {
+                const double t = (double) i / sampleRate;
+                const float sample = pitched->getSample (ch, i);
+                lp += lpCoeff * (sample - lp);
+
+                const double cents = correctionCentsAt (segments, t, clipLengthSec);
+                const double userFormant = formantShiftAt (segments, t, clipLengthSec);
+                const double autoFormant = -(cents / 1200.0) * 0.45;
+                const double formantSemis = userFormant + autoFormant;
+                const double formantRatio = std::pow (2.0, formantSemis / 12.0);
+
+                formantRead += formantRatio;
+                const float formantBody = readInterpolated (*pitched, ch, formantRead);
+                const float preserved = lp * 0.55f + formantBody * 0.45f;
+                const float bright = sample - lp;
+
+                out->setSample (ch, i, preserved + bright);
             }
         }
 

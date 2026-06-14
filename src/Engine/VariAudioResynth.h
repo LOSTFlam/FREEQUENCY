@@ -21,7 +21,12 @@ namespace freequency::engine
                                             double sampleRate,
                                             double timeSec);
 
-        /** Interpolated correction cents at clip time `t` (seconds). */
+        /** Interpolated formant shift (semitones) at clip time. */
+        static double formantShiftAt (const std::vector<models::VariAudioSegment>& segments,
+                                      double timeSec,
+                                      double clipLengthSec);
+
+        /** Interpolated pitch correction cents at clip time. */
         static double correctionCentsAt (const std::vector<models::VariAudioSegment>& segments,
                                          double timeSec,
                                          double clipLengthSec);

@@ -3,8 +3,10 @@
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 #include "Models/PatternExpander.h"
+#include "Engine/PortamentoExpander.h"
 #include "Engine/CompSwipeMixer.h"
 #include "Engine/VariAudioResynth.h"
+#include "Engine/WarpBake.h"
 #include "DSP/BuiltinEffects.h"
 #include "DSP/TimeStretch.h"
 
@@ -14,6 +16,11 @@ namespace freequency::engine
 
     namespace
     {
+        double audioClipLengthSec (const models::AudioClip& clip)
+        {
+            return clip.length > 0.0 ? clip.length : 4.0;
+        }
+
         /** Load an audio file into memory, resampled to `targetSampleRate`.
 
             Done on the message thread (during snapshot building) so the audio
@@ -21,25 +28,36 @@ namespace freequency::engine
             the file can't be read.
         */
         std::unique_ptr<juce::AudioBuffer<float>> applyClipWarp (std::unique_ptr<juce::AudioBuffer<float>> buf,
-                                                                 const models::AudioClip& clip)
+                                                                 const models::AudioClip& clip,
+                                                                 double sampleRate)
         {
             if (buf == nullptr)
                 return buf;
 
             const bool rtElastic = clip.elasticMode == models::ElasticMode::realtimePreview;
             const bool noStretch = clip.elasticMode == models::ElasticMode::none;
+            const double clipLen = audioClipLengthSec (clip);
 
-            if (rtElastic || noStretch)
+            if (rtElastic)
+                return dsp::TimeStretch::applyWarp (std::move (buf), 1.0, clip.pitchSemitones);
+
+            if (! clip.warpMarkers.empty())
+            {
+                const double stretch = noStretch ? 1.0 : clip.stretchRatio;
+                buf = WarpBake::timelineResample (*buf,
+                                                  sampleRate,
+                                                  clipLen,
+                                                  clip.warpMarkers,
+                                                  stretch);
+                return dsp::TimeStretch::applyWarp (std::move (buf), 1.0, clip.pitchSemitones);
+            }
+
+            if (noStretch)
                 return dsp::TimeStretch::applyWarp (std::move (buf), 1.0, clip.pitchSemitones);
 
             return dsp::TimeStretch::applyWarp (std::move (buf),
                                                 clip.stretchRatio,
                                                 clip.pitchSemitones);
-        }
-
-        double audioClipLengthSec (const models::AudioClip& clip)
-        {
-            return clip.length > 0.0 ? clip.length : 4.0;
         }
 
         std::unique_ptr<juce::AudioBuffer<float>> loadFileResampled (juce::AudioFormatManager& fm,
@@ -513,9 +531,12 @@ namespace freequency::engine
 
                     if (auto* midiClip = dynamic_cast<models::MidiClip*> (clip))
                     {
-                        for (int e = 0; e < midiClip->sequence.getNumEvents(); ++e)
+                        juce::MidiMessageSequence expanded = midiClip->sequence;
+                        PortamentoExpander::expandSlides (*midiClip, expanded, tempo);
+
+                        for (int e = 0; e < expanded.getNumEvents(); ++e)
                         {
-                            auto m = midiClip->sequence.getEventPointer (e)->message;
+                            auto m = expanded.getEventPointer (e)->message;
                             m.setTimeStamp (clipStartSamples + m.getTimeStamp() * sr);
                             snapshot->events.addEvent (m);
                         }
@@ -578,7 +599,7 @@ namespace freequency::engine
                             if (takeBuf == nullptr)
                                 continue;
 
-                            takeBuf = applyClipWarp (std::move (takeBuf), *clip);
+                            takeBuf = applyClipWarp (std::move (takeBuf), *clip, sr);
 
                             if (clip->reversed)
                                 for (int ch = 0; ch < takeBuf->getNumChannels(); ++ch)
@@ -608,7 +629,7 @@ namespace freequency::engine
                         if (buffer == nullptr)
                             continue;
 
-                        buffer = applyClipWarp (std::move (buffer), *clip);
+                        buffer = applyClipWarp (std::move (buffer), *clip, sr);
 
                         if (clip->reversed)
                             for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
@@ -634,6 +655,8 @@ namespace freequency::engine
                     region.stretchRatio         = clip->stretchRatio;
                     region.reversed             = clip->reversed;
                     region.elasticMode          = clip->elasticMode;
+                    region.clipLengthSec        = audioClipLengthSec (*clip);
+                    region.warpMarkers          = clip->warpMarkers;
 
                     const auto available = (juce::int64) buffer->getNumSamples() - region.sourceOffsetSamples;
                     juce::int64 maxTimelineSamples = available;

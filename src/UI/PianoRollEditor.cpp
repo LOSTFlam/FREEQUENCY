@@ -128,6 +128,16 @@ namespace freequency::ui
             n.lengthBeats = on->noteOffObject != nullptr
                                 ? (on->noteOffObject->message.getTimeStamp() - on->message.getTimeStamp()) * beatsPerSec
                                 : snapGrid > 0 ? snapGrid : 0.5;
+
+            for (const auto& slide : clip.portamentoSlides)
+            {
+                if (std::abs (slide.endBeat - n.startBeats) < 0.02 && slide.toPitch == n.pitch)
+                {
+                    n.slide = true;
+                    break;
+                }
+            }
+
             notes.push_back (n);
         }
     }
@@ -239,21 +249,29 @@ namespace freequency::ui
         const double secPerBeat = 60.0 / context.project.getTimeline().getTempoBpm();
 
         clip.sequence.clear();
+        clip.portamentoSlides.clear();
         double maxEndSec = 0.0;
 
-        for (const auto& n : notes)
+        auto sorted = notes;
+        std::sort (sorted.begin(), sorted.end(),
+                   [] (const Note& a, const Note& b) { return a.startBeats < b.startBeats; });
+
+        for (size_t i = 0; i < sorted.size(); ++i)
         {
+            const auto& n = sorted[i];
             const double startSec = n.startBeats * secPerBeat;
             const double endSec = (n.startBeats + n.lengthBeats) * secPerBeat;
             maxEndSec = juce::jmax (maxEndSec, endSec);
 
-            if (n.slide)
+            if (n.slide && i > 0)
             {
-                // Basic "slide-in": pitch-bend scoops up to the note over its first
-                // portion (built-in synth + PB-aware plugins respond to this).
-                clip.sequence.addEvent (juce::MidiMessage::pitchWheel (1, 8192 - 3000), startSec);
-                clip.sequence.addEvent (juce::MidiMessage::pitchWheel (1, 8192),
-                                        startSec + juce::jmin (0.08, (endSec - startSec) * 0.5));
+                models::PortamentoSlide slide;
+                slide.fromPitch = sorted[i - 1].pitch;
+                slide.toPitch = n.pitch;
+                slide.endBeat = n.startBeats;
+                slide.startBeat = juce::jmax (0.0, n.startBeats - juce::jmin (0.5, n.lengthBeats * 0.6));
+                slide.curve = 0.55f;
+                clip.portamentoSlides.push_back (slide);
             }
 
             clip.sequence.addEvent (juce::MidiMessage::noteOn (1, n.pitch, (juce::uint8) n.velocity), startSec);
@@ -531,6 +549,28 @@ namespace freequency::ui
             g.fillRoundedRectangle (bounds, 2.0f);
             g.setColour (gn.colour.withAlpha (owner.ghostConfig.opacity * 0.6f));
             g.drawRoundedRectangle (bounds.reduced (0.5f), 2.0f, 0.8f);
+        }
+
+        // Portamento slide curves.
+        for (const auto& slide : owner.clip.portamentoSlides)
+        {
+            juce::Path path;
+            const int steps = 16;
+            for (int s = 0; s <= steps; ++s)
+            {
+                const double t = (double) s / (double) steps;
+                const double curved = t * (1.0 - (double) slide.curve) + t * t * (double) slide.curve;
+                const double beat = slide.startBeat + (slide.endBeat - slide.startBeat) * t;
+                const int pitch = (int) std::llround ((double) slide.fromPitch
+                                                      + ((double) slide.toPitch - (double) slide.fromPitch) * curved);
+                const float x = (float) owner.beatsToX (beat);
+                const float y = (float) owner.pitchToY (pitch) + owner.noteHeight * 0.5f;
+                if (s == 0) path.startNewSubPath (x, y);
+                else        path.lineTo (x, y);
+            }
+            g.setColour (theme().accentWarm.withAlpha (0.85f));
+            g.strokePath (path, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved,
+                                                      juce::PathStrokeType::rounded));
         }
 
         // Notes.

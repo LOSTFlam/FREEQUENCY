@@ -1,6 +1,6 @@
 #include "Engine/AudioClipProcessor.h"
 
-#include "DSP/RtElasticStretch.h"
+#include "Engine/RtElasticStretch.h"
 
 namespace freequency::engine
 {
@@ -34,6 +34,7 @@ namespace freequency::engine
         const auto numSamples = (juce::int64) buffer.getNumSamples();
         const auto blockEnd   = blockStart + numSamples;
         const int  outChannels = buffer.getNumChannels();
+        const double sr = transport.getSampleRate() > 0 ? transport.getSampleRate() : 44100.0;
 
         for (const auto& region : snapshot->regions)
         {
@@ -52,20 +53,28 @@ namespace freequency::engine
             const auto count      = (int) (overlapEnd - overlapStart);
             const auto destOffset = (int) (overlapStart - blockStart);
 
-            if (region.elasticMode == models::ElasticMode::realtimePreview
-                && std::abs (region.stretchRatio - 1.0) > 1.0e-4)
-            {
-                const double timelineRel = (double) (overlapStart - region.timelineStartSample);
-                const double sourceStart = (double) region.sourceOffsetSamples + timelineRel * region.stretchRatio;
+            const bool rtElastic = region.elasticMode == models::ElasticMode::realtimePreview;
+            const bool useRtStretch = rtElastic
+                                      && (std::abs (region.stretchRatio - 1.0) > 1.0e-4
+                                          || ! region.warpMarkers.empty());
 
-                dsp::RtElasticStretch::mixRegion (buffer,
-                                                  destOffset,
-                                                  count,
-                                                  *src,
-                                                  sourceStart,
-                                                  region.stretchRatio,
-                                                  region.gain,
-                                                  region.reversed);
+            if (useRtStretch)
+            {
+                const double timelineStartSec = (double) (overlapStart - region.timelineStartSample) / sr;
+                const auto* warpPtr = region.warpMarkers.empty() ? nullptr : &region.warpMarkers;
+
+                RtElasticStretch::mixRegion (buffer,
+                                             destOffset,
+                                             count,
+                                             *src,
+                                             timelineStartSec,
+                                             sr,
+                                             (double) region.sourceOffsetSamples,
+                                             region.stretchRatio,
+                                             region.gain,
+                                             region.reversed,
+                                             warpPtr,
+                                             region.clipLengthSec);
                 continue;
             }
 

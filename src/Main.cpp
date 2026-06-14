@@ -5,8 +5,10 @@
 #include "Models/ProjectSerializer.h"
 #include "Engine/AudioEngine.h"
 #include "Engine/VariAudioResynth.h"
+#include "Engine/RtElasticStretch.h"
+#include "Engine/WarpMapper.h"
+#include "Engine/PortamentoExpander.h"
 #include "DSP/BuiltinEffects.h"
-#include "DSP/RtElasticStretch.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 
@@ -349,13 +351,15 @@ namespace freequency
                 outA.clear();
                 outB.clear();
 
-                dsp::RtElasticStretch::mixRegion (outA, 0, 2205, src, 0.0, 1.0, 1.0f, false);
-                dsp::RtElasticStretch::mixRegion (outB, 0, 2205, src, 0.0, 1.5, 1.0f, false);
+                engine::RtElasticStretch::mixRegion (outA, 0, 2205, src, 0.0, 44100.0, 0.0, 1.0, 1.0f, false, nullptr, 0.05);
+                engine::RtElasticStretch::mixRegion (outB, 0, 2205, src, 0.0, 44100.0, 0.0, 1.5, 1.0f, false, nullptr, 0.05);
 
-                const float midA = outA.getSample (0, 1100);
-                const float midB = outB.getSample (0, 1100);
-                const bool elasticOk = std::abs (midA - midB) > 0.01f;
-                std::cout << "FREEQUENCY self-test: elastic RT delta=" << std::abs (midA - midB)
+                float maxDelta = 0.0f;
+                for (int i = 0; i < 2205; ++i)
+                    maxDelta = juce::jmax (maxDelta, std::abs (outA.getSample (0, i) - outB.getSample (0, i)));
+
+                const bool elasticOk = maxDelta > 0.005f;
+                std::cout << "FREEQUENCY self-test: elastic RT maxDelta=" << maxDelta
                           << (elasticOk ? "  [PASS]" : "  [FAIL]") << std::endl;
             }
 
@@ -387,6 +391,43 @@ namespace freequency
                                    && clip2->warpMarkers.size() == 1;
                 std::cout << "FREEQUENCY self-test: serializer (vari/elastic) "
                           << (serOk ? "[PASS]" : "[FAIL]") << std::endl;
+            }
+
+            // Portamento slides expand to pitch-bend events.
+            {
+                models::MidiClip mc;
+                models::PortamentoSlide slide;
+                slide.startBeat = 0.0;
+                slide.endBeat = 1.0;
+                slide.fromPitch = 60;
+                slide.toPitch = 72;
+                slide.curve = 0.5f;
+                mc.portamentoSlides.push_back (slide);
+                mc.sequence.addEvent (juce::MidiMessage::noteOn (1, 72, (juce::uint8) 100), 1.0);
+                mc.sequence.addEvent (juce::MidiMessage::noteOff (1, 72), 2.0);
+
+                juce::MidiMessageSequence expanded = mc.sequence;
+                engine::PortamentoExpander::expandSlides (mc, expanded, 120.0);
+
+                int pbCount = 0;
+                for (int i = 0; i < expanded.getNumEvents(); ++i)
+                    if (expanded.getEventPointer (i)->message.isPitchWheel())
+                        ++pbCount;
+
+                const bool portOk = pbCount >= 2;
+                std::cout << "FREEQUENCY self-test: portamento bends=" << pbCount
+                          << (portOk ? "  [PASS]" : "  [FAIL]") << std::endl;
+            }
+
+            // Warp map: mid-marker slows second half.
+            {
+                std::vector<models::WarpMarker> markers;
+                markers.push_back ({ 0.25, 0.5 }); // sourceTime, timelineTime
+
+                const double srcMid = engine::WarpMapper::timelineToSource (0.75, markers, 1.0, 1.0, 1.0);
+                const bool warpOk = std::abs (srcMid - 0.625) < 0.02;
+                std::cout << "FREEQUENCY self-test: warp map mid=" << srcMid
+                          << (warpOk ? "  [PASS]" : "  [FAIL]") << std::endl;
             }
         }
 

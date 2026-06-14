@@ -30,14 +30,16 @@ namespace freequency::engine
 
         struct Region
         {
-            juce::int64 timelineStartSample { 0 }; // where the clip sits on the timeline
-            juce::int64 lengthSamples       { 0 }; // playable length on the timeline
-            juce::int64 sourceOffsetSamples { 0 }; // offset into the source buffer
-            int   bufferIndex { -1 };              // index into `buffers`
+            juce::int64 timelineStartSample { 0 };
+            juce::int64 lengthSamples       { 0 };
+            juce::int64 sourceOffsetSamples { 0 };
+            int   bufferIndex { -1 };
             float gain { 1.0f };
             double stretchRatio { 1.0 };
             bool reversed { false };
             models::ElasticMode elasticMode { models::ElasticMode::offlineOLA };
+            double clipLengthSec { 0.0 };
+            std::vector<models::WarpMarker> warpMarkers;
         };
 
         juce::OwnedArray<juce::AudioBuffer<float>> buffers; // resampled source data

@@ -26,6 +26,7 @@ namespace freequency::models
         OMNI_ID (COMPSWIPE) OMNI_ID (takeA) OMNI_ID (takeB) OMNI_ID (crossfade)
         OMNI_ID (VARIAUDIO) OMNI_ID (pitchCents) OMNI_ID (formant) OMNI_ID (locked)
         OMNI_ID (elasticMode) OMNI_ID (WARP) OMNI_ID (sourceTime) OMNI_ID (timelineTime)
+        OMNI_ID (PORTAMENTO) OMNI_ID (fromPitch) OMNI_ID (toPitch) OMNI_ID (curve)
         OMNI_ID (patternId) OMNI_ID (stepsPerBar) OMNI_ID (lengthBeats)
         OMNI_ID (channel) OMNI_ID (rootNote) OMNI_ID (on)
         OMNI_ID (PATTERN) OMNI_ID (CHANNEL) OMNI_ID (STEP)
@@ -203,6 +204,17 @@ namespace freequency::models
                         evTree.setProperty (time, msg.getTimeStamp(), nullptr);
                         evTree.setProperty (data, hexFromMidi (msg), nullptr);
                         clipTree.appendChild (evTree, nullptr);
+                    }
+
+                    for (const auto& slide : midiClip->portamentoSlides)
+                    {
+                        juce::ValueTree slideTree (PORTAMENTO);
+                        slideTree.setProperty (start, slide.startBeat, nullptr);
+                        slideTree.setProperty (length, slide.endBeat, nullptr);
+                        slideTree.setProperty (fromPitch, slide.fromPitch, nullptr);
+                        slideTree.setProperty (toPitch, slide.toPitch, nullptr);
+                        slideTree.setProperty (curve, slide.curve, nullptr);
+                        clipTree.appendChild (slideTree, nullptr);
                     }
                 }
                 else if (auto* patClip = dynamic_cast<PatternClip*> (clip))
@@ -544,6 +556,22 @@ namespace freequency::models
                                         midiFromHex (ev.getProperty (data).toString(),
                                                      ev.getProperty (time, 0.0)));
                             }
+
+                            for (int s = 0; s < child.getNumChildren(); ++s)
+                            {
+                                auto slideNode = child.getChild (s);
+                                if (! slideNode.hasType (PORTAMENTO))
+                                    continue;
+
+                                PortamentoSlide slide;
+                                slide.startBeat = slideNode.getProperty (start, 0.0);
+                                slide.endBeat = slideNode.getProperty (length, 0.0);
+                                slide.fromPitch = (int) slideNode.getProperty (fromPitch, 60);
+                                slide.toPitch = (int) slideNode.getProperty (toPitch, 64);
+                                slide.curve = (float) (double) slideNode.getProperty (curve, 0.5);
+                                clip->portamentoSlides.push_back (slide);
+                            }
+
                             clip->sequence.updateMatchedPairs();
                         }
                     }
