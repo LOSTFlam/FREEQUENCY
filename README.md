@@ -36,9 +36,8 @@ ships a full arrange view, mixing console, automation and disk recording.
   (Alt+drag audio content), split, duplicate, delete, nudge.
 - **Audio warp**: offline **OLA time-stretch** (pitch-preserving, no transient
   locking) and **pitch shift via resample** (Cmd+↑/↓ pitch, Cmd+Shift+←/→ stretch).
-- **Comping**: multi-take switching (`[` / `]`, add take from file) — no swipe
-  crossfade; VariAudio-style pitch correction and note portamento remain on the
-  roadmap.
+- **Comping**: multi-take switching (`[` / `]`), **swipe comp crossfade** on lanes, add take from file.
+- **PatternClip playback** and **ghost notes** in piano roll / Frequency Field.
 - **Mixing console**: per-track / bus / master **channel strips** with faders,
   pan, mute/solo, **meters**, **aux sends** and **FX bus** routing.
 - **Master limiter**: transparent brick-wall safety limiter on the output.
@@ -84,7 +83,7 @@ src/
     ├── ArrangeView, TrackHeaderComponent, TrackLaneComponent,
     │   TimelineRuler, PlayheadOverlay
     ├── PianoRollEditor   (full-screen MIDI editor)
-    └── MixerView, ChannelStrip
+    └── MixerView, ChannelStrip, FrequencyFieldEditor
 ```
 
 ### Real-time thread safety
@@ -98,10 +97,41 @@ de-zippering via `juce::SmoothedValue`. Disk recording streams through a
 
 ## Building
 
-Requires CMake ≥ 3.22 and a C++20 compiler. JUCE 8 is fetched automatically via
-CMake `FetchContent` (no manual JUCE install needed).
+Requires **CMake ≥ 3.22**, **Git**, and a **C++20** compiler. JUCE 8 is fetched
+automatically (no manual JUCE install).
 
-On Linux, install the JUCE build dependencies first:
+### Windows (easiest)
+
+1. Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) with workload **Desktop development with C++** (includes MSVC + Windows SDK).
+2. Install [Git for Windows](https://git-scm.com/download/win) and [CMake](https://cmake.org/download/) if VS did not add them to PATH.
+3. From the repo root, double-click **`build.bat`** or run in a terminal:
+
+```bat
+build.bat              REM Release build
+build.bat run          REM build + launch FREEQUENCY.exe
+build.bat test         REM build + --selftest
+build.bat debug        REM Debug build
+build.bat clean        REM wipe build/ and reconfigure
+```
+
+PowerShell (recommended if `build.bat` fails):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Run
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -SelfTest
+```
+
+Output: `build\src\FREEQUENCY_artefacts\Release\FREEQUENCY.exe`
+
+### Linux / macOS
+
+```bash
+./scripts/build.sh            # Release
+./scripts/build.sh Debug      # Debug
+./scripts/build.sh --no-lto   # faster incremental links
+```
+
+On Linux, install JUCE dependencies first:
 
 ```bash
 sudo apt-get install -y libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
@@ -113,7 +143,7 @@ sudo apt-get install -y libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
 Then build with the helper script (or CMake directly):
 
 ```bash
-./scripts/build.sh            # Linux / macOS  (scripts\build.bat on Windows)
+./scripts/build.sh
 # or:
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc
 cmake --build build --target FREEQUENCY -j
@@ -167,7 +197,7 @@ printing `[PASS]` for each.
 - **Phase 5 — Automation & disk recording** ✅
 - Project save/load ✅
 - Full piano-roll editor, clip drag/trim, OLA time-stretch, resample pitch,
-  comping (take switching), 16 built-in FX ✅
-- Next: **Frequency Field** editor (flagship), VariAudio resynth, swipe comp crossfade,
-  PatternClip playback, ghost notes, real-time elastic audio.
+  comping (take switching + swipe crossfade), PatternClip playback, ghost notes ✅
+- **Frequency Field** editor (v1 shell — pitch grid, VariAudio anchors, comp bands) 🔄
+- Next: VariAudio **resynth bake**, portamento slides, **real-time elastic** preview
 - Design: [FREEQUENCY — Spectral UI (Figma)](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)

@@ -88,6 +88,7 @@ namespace freequency::ui
         context.pushUndo = [this] { pushUndo(); };
         context.openPianoRoll = [this] (models::MidiClip& mc, models::Track& tr)
         {
+            frequencyField = nullptr;
             pianoRoll = std::make_unique<PianoRollEditor> (context, mc, tr);
             pianoRoll->onClose = [this]
             {
@@ -99,6 +100,23 @@ namespace freequency::ui
             };
             addAndMakeVisible (*pianoRoll);
             pianoRoll->setBounds (getLocalBounds().withTrimmedTop (56));
+            pianoRoll->toFront (false);
+        };
+        context.openFrequencyField = [this] (models::AudioClip& ac, models::Track& tr)
+        {
+            pianoRoll = nullptr;
+            frequencyField = std::make_unique<FrequencyFieldEditor> (context, ac, tr);
+            frequencyField->onClose = [this]
+            {
+                frequencyField = nullptr;
+                resized();
+                guideController.showPanelClosedHint (GuideAnchor::arrangeView,
+                    "Frequency Field closed",
+                    "Double-click an audio clip to reopen the harmonic editor.");
+            };
+            addAndMakeVisible (*frequencyField);
+            frequencyField->setBounds (getLocalBounds().withTrimmedTop (56));
+            frequencyField->toFront (false);
         };
 
         audioEngine.setProject (&project);
@@ -429,6 +447,9 @@ namespace freequency::ui
 
         if (pianoRoll != nullptr)
             pianoRoll->setBounds (r);
+
+        if (frequencyField != nullptr)
+            frequencyField->setBounds (r);
 
         guideController.resizeToHost();
     }

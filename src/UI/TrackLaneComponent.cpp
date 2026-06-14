@@ -771,6 +771,11 @@ namespace freequency::ui
                         if (context.openPianoRoll) context.openPianoRoll (*midiClip, trackRef);
                         return;
                     }
+                    if (auto* audioClip = dynamic_cast<models::AudioClip*> (clip))
+                    {
+                        if (context.openFrequencyField) context.openFrequencyField (*audioClip, trackRef);
+                        return;
+                    }
                 }
             }
         }

@@ -12,6 +12,7 @@
 #include "UI/PianoRollEditor.h"
 #include "UI/MediaBrowser.h"
 #include "UI/AppearancePanel.h"
+#include "UI/FrequencyFieldEditor.h"
 #include "UI/UiGuideController.h"
 
 #include <optional>
@@ -107,6 +108,7 @@ namespace freequency::ui
         std::unique_ptr<MixerView> mixerView;
         std::unique_ptr<StatusBar> statusBar;
         std::unique_ptr<PianoRollEditor> pianoRoll;
+        std::unique_ptr<FrequencyFieldEditor> frequencyField;
         std::unique_ptr<MediaBrowser> mediaBrowser;
         bool browserVisible { false };
         juce::OwnedArray<PluginEditorWindow> pluginWindows;

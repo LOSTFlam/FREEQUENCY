@@ -120,6 +120,7 @@ freequency_add_library(FreequencyUI
     UI/ChannelStrip.cpp
     UI/MixerView.cpp
     UI/PianoRollEditor.cpp
+    UI/FrequencyFieldEditor.cpp
     UI/MediaBrowser.cpp
     UI/AppearancePanel.cpp
     UI/UiGuideTypes.cpp

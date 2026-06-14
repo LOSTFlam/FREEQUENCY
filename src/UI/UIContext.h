@@ -38,6 +38,7 @@ namespace freequency::ui
         std::function<void()> rebuildArrange; // structural: recreate lanes after add/remove
         std::function<void()> pushUndo;       // snapshot the project before an edit
         std::function<void (models::MidiClip&, models::Track&)> openPianoRoll;
+        std::function<void (models::AudioClip&, models::Track&)> openFrequencyField;
         std::function<juce::File()> getBrowserSelectedFile; // for drag-and-drop from the browser
 
         double pixelsPerSecond { 90.0 };
