@@ -1,10 +1,14 @@
 #pragma once
 
+#include "Engine/Transport.h"
+#include "Engine/AutomationSnapshot.h"
+#include "Engine/SnapshotHolder.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         TrackProcessor — the audio-graph node that represents one mixer strip.
@@ -29,7 +33,7 @@ namespace omnidaw::engine
         arrive from the message thread purely through std::atomics; the audio
         thread reads them once per block and feeds juce::SmoothedValue ramps so
         there are no zipper-noise discontinuities. This is the pattern every node
-        in OmniDAW follows.
+        in FREEQUENCY follows.
     */
     class TrackProcessor final : public juce::AudioProcessor
     {
@@ -44,6 +48,15 @@ namespace omnidaw::engine
         void setPan  (float newPan)     noexcept { targetPan.store (juce::jlimit (-1.0f, 1.0f, newPan), std::memory_order_relaxed); }
         void setMuted (bool shouldMute) noexcept { muted.store (shouldMute, std::memory_order_relaxed); }
 
+        // ── Volume automation ───────────────────────────────────────────────────
+        /** Provide the shared transport so the strip can read playhead position. */
+        void setTransport (Transport* t) noexcept { transport = t; }
+        /** Enable/disable automation override of the fader gain. */
+        void setAutomationEnabled (bool enabled) noexcept { automationEnabled.store (enabled, std::memory_order_relaxed); }
+        /** Publish a fresh automation snapshot (message thread). */
+        void setAutomationSnapshot (AutomationSnapshot::Ptr snap) { automationHolder.publish (std::move (snap)); }
+        void collectGarbage() { automationHolder.collectGarbage(); }
+
         /** Total number of audio samples this node has processed since the last
             prepareToPlay(). Read from the message thread (e.g. by a status timer)
             to confirm the engine is actually running without touching the audio
@@ -52,6 +65,12 @@ namespace omnidaw::engine
         [[nodiscard]] juce::int64 getProcessedSampleCount() const noexcept
         {
             return processedSamples.load (std::memory_order_relaxed);
+        }
+
+        /** Post-fader output peak of the last block (0..1), for metering. */
+        [[nodiscard]] float getOutputLevel() const noexcept
+        {
+            return outputLevel.load (std::memory_order_relaxed);
         }
 
         // ── juce::AudioProcessor ───────────────────────────────────────────────
@@ -98,7 +117,13 @@ namespace omnidaw::engine
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedRightPanGain;
 
         std::atomic<juce::int64> processedSamples { 0 };
+        std::atomic<float> outputLevel { 0.0f };
+
+        // Automation override of the fader.
+        Transport* transport { nullptr };
+        std::atomic<bool> automationEnabled { false };
+        SnapshotHolder<AutomationSnapshot> automationHolder;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackProcessor)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

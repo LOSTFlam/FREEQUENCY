@@ -2,12 +2,12 @@
 
 #include "Models/Track.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         MidiTrack — a track that hosts MidiClips driving a VST3 instrument.
 
-        This is where OmniDAW's "hybrid" nature shows: a MidiTrack can be used in
+        This is where FREEQUENCY's "hybrid" nature shows: a MidiTrack can be used in
         a Cubase-style linear arrangement (clips on the timeline) or fed from an
         FL-style pattern (Phase 6). The engine represents it as an instrument
         TrackProcessor node: MIDI events flow in from the sequencer FIFO, the
@@ -34,4 +34,4 @@ namespace omnidaw::models
         /** MIDI input channel the track listens to (1-16, or 0 for "omni"). */
         int midiInputChannel { 0 };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

@@ -1,6 +1,6 @@
 #include "Models/Track.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     Track::Track (TrackType trackType)
         : type (trackType)
@@ -31,10 +31,42 @@ namespace omnidaw::models
         sendChangeMessage();
     }
 
+    Track::Send* Track::addSend (const juce::String& destBusId)
+    {
+        auto* send = new Send();
+        send->destBusId = destBusId;
+        send->level.store (0.5f, std::memory_order_relaxed);
+        sends.add (send);
+        sendChangeMessage();
+        return send;
+    }
+
+    void Track::removeSend (int index)
+    {
+        if (index >= 0 && index < sends.size())
+        {
+            sends.remove (index);
+            sendChangeMessage();
+        }
+    }
+
+    void Track::removeClip (Clip* clip)
+    {
+        for (int i = 0; i < clips.size(); ++i)
+        {
+            if (clips[i] == clip)
+            {
+                clips.remove (i);
+                sendChangeMessage();
+                return;
+            }
+        }
+    }
+
     Clip* Track::addClipInternal (std::unique_ptr<Clip> clip)
     {
         auto* raw = clips.add (clip.release());
         sendChangeMessage();
         return raw;
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

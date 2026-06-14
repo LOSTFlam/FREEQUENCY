@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FREEQUENCY
+GenericName=Digital Audio Workstation
+Comment=Hybrid DAW — pattern + linear audio/MIDI production
+Exec=FREEQUENCY %f
+Icon=freequency
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+MimeType=application/x-freequency-project;
+Keywords=DAW;audio;music;MIDI;synth;mixer;

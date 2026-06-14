@@ -3,8 +3,10 @@
 #include "Core/Types.h"
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
+#include "Models/BusTrack.h"
+#include "Models/VCATrack.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         Timeline — the ordered collection of tracks plus the musical grid.
@@ -21,9 +23,14 @@ namespace omnidaw::models
         // ── Tracks ────────────────────────────────────────────────────────────
         AudioTrack* addAudioTrack();
         MidiTrack*  addMidiTrack();
+        BusTrack*   addBusTrack();
+        VCATrack*   addVCATrack();
 
         /** Removes a track by id. Returns true if a track was removed. */
         bool removeTrack (const ObjectId& trackId);
+
+        /** Removes all tracks (used when loading a project). */
+        void clear() { tracks.clear(); }
 
         [[nodiscard]] int    getNumTracks() const noexcept { return tracks.size(); }
         [[nodiscard]] Track* getTrack (int index) const noexcept { return tracks[index]; }
@@ -56,4 +63,4 @@ namespace omnidaw::models
         int    timeSigNumerator { 4 };
         int    timeSigDenominator { 4 };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

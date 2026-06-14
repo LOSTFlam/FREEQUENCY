@@ -2,17 +2,20 @@
 
 #include "Core/Types.h"
 #include "Models/Clip.h"
+#include "Models/AutomationCurve.h"
 
 #include <juce_data_structures/juce_data_structures.h>
 
 #include <atomic>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     enum class TrackType
     {
         audio,
-        midi
+        midi,
+        bus,   // group / summing track (Cubase Group Channel)
+        vca    // VCA control track (no audio; scales member faders)
     };
 
     /**
@@ -56,6 +59,11 @@ namespace omnidaw::models
         juce::String name;
         juce::Colour colour { juce::Colours::grey };
 
+        /** Destination bus id (dashed UUID) for this track's main output; empty
+            means route directly to the master bus. Lets a track be "thrown" onto
+            any mixer bus/group. */
+        juce::String outputBusId;
+
         // ── Mixer state (lock-free readable) ──────────────────────────────────
         // Stored as linear gain (1.0 == unity) and pan in [-1, +1].
         [[nodiscard]] float getVolume() const noexcept { return volume.load (std::memory_order_relaxed); }
@@ -68,15 +76,45 @@ namespace omnidaw::models
         void setMuted  (bool shouldBeMuted) noexcept;
         void setSoloed (bool shouldBeSoloed) noexcept;
 
+        // ── Insert FX chain ───────────────────────────────────────────────────
+        // Ordered list of effect plugins applied in series, post-instrument /
+        // post-clip and pre-fader. We store identifier strings (not live
+        // pointers) so the model stays decoupled from the engine and is trivially
+        // serialisable; the engine resolves them via the PluginManager.
+        juce::StringArray insertPluginIdentifiers;
+
+        // ── Sends (aux routing) ─────────────────────────────────────────────────
+        /** A post-fader tap that copies this track's signal to a destination bus
+            (typically an FX/aux bus) at an independent level. */
+        struct Send
+        {
+            juce::String destBusId;          // Bus id (dashed string)
+            std::atomic<float> level { 0.0f }; // linear gain of the send tap
+        };
+
+        [[nodiscard]] int getNumSends() const noexcept { return sends.size(); }
+        [[nodiscard]] Send* getSend (int index) const noexcept { return sends[index]; }
+        Send* addSend (const juce::String& destBusId);
+        void removeSend (int index);
+
+        // ── Volume automation ───────────────────────────────────────────────────
+        // When enabled, this curve drives the channel-strip gain over time instead
+        // of the static fader value. Edited on the message thread; the engine
+        // publishes a sampled snapshot to the audio thread.
+        AutomationCurve volumeAutomation;
+        bool volumeAutomationEnabled { false };
+
         // ── Clips ─────────────────────────────────────────────────────────────
         [[nodiscard]] int getNumClips() const noexcept { return clips.size(); }
         [[nodiscard]] Clip* getClip (int index) const noexcept { return clips[index]; }
+        void removeClip (Clip* clip);
 
     protected:
         /** Subclasses add clips through here so they can enforce the clip type. */
         Clip* addClipInternal (std::unique_ptr<Clip> clip);
 
         juce::OwnedArray<Clip> clips;
+        juce::OwnedArray<Send> sends;
 
     private:
         const ObjectId id;
@@ -87,4 +125,4 @@ namespace omnidaw::models
         std::atomic<bool>  mute   { false };
         std::atomic<bool>  solo   { false };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

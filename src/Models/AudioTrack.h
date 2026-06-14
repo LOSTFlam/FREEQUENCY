@@ -2,7 +2,7 @@
 
 #include "Models/Track.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         AudioTrack — a track that hosts AudioClips and a chain of audio effects.
@@ -30,4 +30,4 @@ namespace omnidaw::models
         /** When true the track is armed for recording. */
         bool recordEnabled { false };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

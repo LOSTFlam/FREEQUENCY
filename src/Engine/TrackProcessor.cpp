@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     namespace
     {
@@ -48,7 +48,7 @@ namespace omnidaw::engine
     bool TrackProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     {
         // We only support matching mono or stereo in/out; the graph runs in
-        // stereo throughout OmniDAW.
+        // stereo throughout FREEQUENCY.
         const auto& mainOut = layouts.getMainOutputChannelSet();
 
         if (mainOut != juce::AudioChannelSet::mono()
@@ -66,14 +66,20 @@ namespace omnidaw::engine
         const int numSamples  = buffer.getNumSamples();
 
         // Pull the latest message-thread targets exactly once per block.
+        // When automation is enabled, the curve value at the current playhead
+        // position drives the gain instead of the static fader target.
+        float gainTarget = targetGain.load (std::memory_order_relaxed);
+
+        if (automationEnabled.load (std::memory_order_relaxed) && transport != nullptr)
+        {
+            if (auto snap = automationHolder.getForAudio())
+                gainTarget = snap->evaluate (transport->getPositionSamples());
+        }
+
         if (muted.load (std::memory_order_relaxed))
-        {
             smoothedGain.setTargetValue (0.0f);
-        }
         else
-        {
-            smoothedGain.setTargetValue (targetGain.load (std::memory_order_relaxed));
-        }
+            smoothedGain.setTargetValue (gainTarget);
 
         float panLeft = 1.0f, panRight = 1.0f;
         computePanGains (targetPan.load (std::memory_order_relaxed), panLeft, panRight);
@@ -107,5 +113,14 @@ namespace omnidaw::engine
         }
 
         processedSamples.fetch_add (numSamples, std::memory_order_relaxed);
+
+        // Post-fader peak for the mixer meters. A decaying max gives a smoother,
+        // more readable meter than a raw per-block peak.
+        float peak = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+            peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, numSamples));
+
+        const float previous = outputLevel.load (std::memory_order_relaxed) * 0.78f;
+        outputLevel.store (juce::jmax (peak, previous), std::memory_order_relaxed);
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

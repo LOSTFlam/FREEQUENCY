@@ -1,6 +1,6 @@
 #include "Models/Timeline.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     AudioTrack* Timeline::addAudioTrack()
     {
@@ -13,6 +13,22 @@ namespace omnidaw::models
     MidiTrack* Timeline::addMidiTrack()
     {
         auto* track = new MidiTrack();
+        track->colour = defaults::nextTrackColour (tracks.size());
+        tracks.add (track);
+        return track;
+    }
+
+    BusTrack* Timeline::addBusTrack()
+    {
+        auto* track = new BusTrack();
+        track->colour = defaults::nextTrackColour (tracks.size());
+        tracks.add (track);
+        return track;
+    }
+
+    VCATrack* Timeline::addVCATrack()
+    {
+        auto* track = new VCATrack();
         track->colour = defaults::nextTrackColour (tracks.size());
         tracks.add (track);
         return track;
@@ -46,4 +62,4 @@ namespace omnidaw::models
         timeSigNumerator   = juce::jmax (1, numerator);
         timeSigDenominator = juce::jmax (1, denominator);
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

@@ -2,11 +2,12 @@
 
 #include "Models/Timeline.h"
 #include "Models/Mixer.h"
+#include "Models/Pattern.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
-        Project — the document root of OmniDAW.
+        Project — the document root of FREEQUENCY.
 
         Aggregates the two top-level models the rest of the app hangs off:
           - Timeline : tracks, clips and the musical grid.
@@ -28,6 +29,12 @@ namespace omnidaw::models
         [[nodiscard]] Mixer& getMixer() noexcept { return mixer; }
         [[nodiscard]] const Mixer& getMixer() const noexcept { return mixer; }
 
+        // ── Patterns (FL channel-rack content, shared by PatternClips) ──────────
+        Pattern& addPattern();
+        [[nodiscard]] int getNumPatterns() const noexcept { return patterns.size(); }
+        [[nodiscard]] Pattern* getPattern (int index) const noexcept { return patterns[index]; }
+        [[nodiscard]] Pattern* findPattern (const juce::String& dashedId) const noexcept;
+
         juce::String name { "Untitled Project" };
 
         /** Path the project was last saved to (empty if never saved). */
@@ -36,5 +43,6 @@ namespace omnidaw::models
     private:
         Timeline timeline;
         Mixer mixer;
+        juce::OwnedArray<Pattern> patterns;
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

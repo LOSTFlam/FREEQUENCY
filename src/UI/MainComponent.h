@@ -2,43 +2,100 @@
 
 #include "Models/Project.h"
 #include "Engine/AudioEngine.h"
+#include "UI/UIContext.h"
+#include "UI/FreequencyLookAndFeel.h"
+#include "UI/TransportBar.h"
+#include "UI/ArrangeView.h"
+#include "UI/MixerView.h"
+#include "UI/StatusBar.h"
+#include "UI/PluginEditorWindow.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
-        MainComponent — the application's root component.
+        MainComponent — the application root: owns the document (Project), the
+        AudioEngine, and the top-level views (transport bar + arrange view, with a
+        toggleable mixer in Phase 4).
 
-        Phase 1 keeps this deliberately bare: there is no timeline, mixer or
-        transport UI yet. Its only jobs are to OWN the document (Project) and the
-        AudioEngine, wire them together, and start audio. The real views arrive in
-        Phase 3+.
-
-        Note the strict layering: this UI component depends on the model and the
-        engine, but neither of those depends on it. That one-way dependency is the
-        whole point of the MVVM/Model-View separation mandated for OmniDAW — the
-        audio engine could run in a headless render tool with this file deleted.
+        Strict layering still holds: this UI owns and drives the model/engine, but
+        the model and engine never depend on it.
     */
-    class MainComponent final : public juce::Component
+    class MainComponent final : public juce::Component,
+                                public juce::ApplicationCommandTarget
     {
     public:
         MainComponent();
         ~MainComponent() override;
 
+        /** Loads a .freq project file, rebuilding the engine graph and views. */
+        bool openProjectFile (const juce::File&);
+
         void paint (juce::Graphics&) override;
         void resized() override;
+        bool keyStateChanged (bool isKeyDown) override; // computer-keyboard piano
+        void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
+
+        // ── ApplicationCommandTarget ────────────────────────────────────────────
+        ApplicationCommandTarget* getNextCommandTarget() override { return nullptr; }
+        void getAllCommands (juce::Array<juce::CommandID>&) override;
+        void getCommandInfo (juce::CommandID, juce::ApplicationCommandInfo&) override;
+        bool perform (const InvocationInfo&) override;
+
+        [[nodiscard]] juce::ApplicationCommandManager& getCommandManager() noexcept { return commandManager; }
 
     private:
-        // The document and the engine are owned here for Phase 1. As the app
-        // grows these will likely move up into the JUCEApplication / a controller.
-        std::unique_ptr<models::Project> project;
-        std::unique_ptr<engine::AudioEngine> audioEngine;
+        void buildDemoProject();
+        void toggleMixer();
 
+        // Command actions.
+        void afterTrackChange();
+        void afterClipChange();
+        void toggleRecord();
+        void saveProjectAs();
+        void openProjectDialog();
+        void openKeyMappings();
+        void duplicateSelectedClip();
+        void splitSelectedClipAtPlayhead();
+        void deleteSelectedClip();
+        void nudgeSelectedClip (int direction);
+        void movePlayheadByBar (int direction);
+        void changeTempo (double delta);
+
+        // Computer-keyboard piano.
+        [[nodiscard]] models::MidiTrack* pianoTargetTrack() const;
+        void allPianoNotesOff();
+
+        juce::File keyMappingsFile() const;
+        void saveKeyMappings();
+
+        FreequencyLookAndFeel lookAndFeel;
+
+        models::Project project;
+        engine::AudioEngine audioEngine;
+        UIContext context { project, audioEngine };
+
+        std::unique_ptr<TransportBar> transportBar;
+        std::unique_ptr<ArrangeView> arrangeView;
+        std::unique_ptr<MixerView> mixerView;
+        std::unique_ptr<StatusBar> statusBar;
+        juce::OwnedArray<PluginEditorWindow> pluginWindows;
+
+        juce::ApplicationCommandManager commandManager;
+        std::unique_ptr<juce::DocumentWindow> keyMappingWindow;
+        std::unique_ptr<juce::FileChooser> fileChooser;
+
+        // Computer-keyboard piano state.
+        bool pianoEnabled { false };
+        int  pianoOctave { 5 };          // octave 5 => 'a' = C5 = MIDI 60
+        bool pianoKeyDown[13] { false };  // C..C across one octave + 1
+
+        bool mixerVisible { false };
         juce::String engineStatus;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

@@ -1,6 +1,6 @@
 #include "Models/MidiTrack.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     MidiTrack::MidiTrack()
         : Track (TrackType::midi)
@@ -14,4 +14,4 @@ namespace omnidaw::models
         auto* raw = static_cast<MidiClip*> (addClipInternal (std::move (clip)));
         return raw;
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

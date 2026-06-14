@@ -4,7 +4,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /** Discriminator for the polymorphic Clip hierarchy.
 
@@ -14,7 +14,8 @@ namespace omnidaw::models
     enum class ClipType
     {
         audio,
-        midi
+        midi,
+        pattern   // an instance of a reusable Pattern (FL playlist block)
     };
 
     /**
@@ -109,4 +110,22 @@ namespace omnidaw::models
         /** The note/CC data for this clip, timestamped relative to startTime. */
         juce::MidiMessageSequence sequence;
     };
-} // namespace omnidaw::models
+
+    /**
+        PatternClip — a placement of a reusable Pattern on the linear timeline.
+
+        This is the bridge between the FL pattern workflow and the Cubase linear
+        arranger: the clip merely *references* a Pattern (by id); the pattern's
+        content lives once in the Project and is shared by every placement, so
+        editing the pattern updates all its clips. The engine expands the
+        referenced pattern into MIDI for the clip's time range at render.
+    */
+    class PatternClip final : public Clip
+    {
+    public:
+        PatternClip();
+
+        /** Id of the Pattern this clip instantiates (dashed UUID string). */
+        juce::String patternId;
+    };
+} // namespace freequency::models
