@@ -107,6 +107,19 @@ namespace freequency
             std::cout << "FREEQUENCY self-test: automation(0) steady peak = " << autoPeak
                       << (autoPeak < 0.01f ? "  [PASS]" : "  [FAIL: not silenced]")
                       << std::endl;
+
+            // Metronome: an empty project with the click on must still produce
+            // sound (the beat blips), proving the metronome node works.
+            {
+                models::Project clickProject;
+                clickProject.getTimeline().setTempoBpm (120.0);
+                engine::AudioEngine clickEngine;
+                clickEngine.setProject (&clickProject);
+                clickEngine.setMetronomeEnabled (true);
+                const float clickPeak = clickEngine.renderOfflinePeak (44100.0, 1.0);
+                std::cout << "FREEQUENCY self-test: metronome peak = " << clickPeak
+                          << (clickPeak > 0.01f ? "  [PASS]" : "  [FAIL: no click]") << std::endl;
+            }
         }
 
         /** A standard resizable document window hosting the MainComponent. */

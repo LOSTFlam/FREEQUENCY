@@ -6,6 +6,8 @@
 #include "Engine/MidiSourceProcessor.h"
 #include "Engine/AudioClipProcessor.h"
 #include "Engine/SynthProcessor.h"
+#include "Engine/MetronomeProcessor.h"
+#include "Engine/LimiterProcessor.h"
 #include "Engine/PluginManager.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -116,6 +118,15 @@ namespace freequency::engine
         /** Peek the master output level (0..1, post-fader) for metering. */
         [[nodiscard]] float getMasterLevel() const noexcept { return masterLevel.load (std::memory_order_relaxed); }
 
+        // ── Metronome & master limiter ──────────────────────────────────────────
+        void setMetronomeEnabled (bool e);
+        [[nodiscard]] bool isMetronomeEnabled() const noexcept;
+        void setLimiterEnabled (bool e);
+        [[nodiscard]] bool isLimiterEnabled() const noexcept;
+
+        /** CPU load (0..1) reported by the audio device. */
+        [[nodiscard]] double getCpuUsage() const noexcept { return deviceManager.getCpuUsage(); }
+
         // ── juce::AudioIODeviceCallback ─────────────────────────────────────────
         void audioDeviceAboutToStart (juce::AudioIODevice*) override;
         void audioDeviceStopped() override;
@@ -163,6 +174,8 @@ namespace freequency::engine
 
         Node::Ptr audioOutputNode;
         Node::Ptr masterNode;
+        Node::Ptr limiterNode;
+        Node::Ptr metronomeNode;
 
         std::unordered_map<std::string, TrackChain> trackChains;
         std::unordered_map<std::string, NodeID> busNodes; // bus id -> strip node
@@ -187,6 +200,8 @@ namespace freequency::engine
         std::atomic<bool> recording { false };
 
         std::atomic<float> masterLevel { 0.0f };
+        bool metronomeOn { false };
+        bool limiterOn { true };
         bool running { false };
         juce::int64 lastReportedSamples { 0 };
 

@@ -132,7 +132,16 @@ namespace freequency::engine
 
         masterNode = graph.addNode (std::make_unique<TrackProcessor> ("Master"));
 
-        connectStereo (masterNode->nodeID, audioOutputNode->nodeID);
+        // Master bus -> brick-wall limiter -> output. The limiter is a safety net
+        // that keeps the final mix from clipping the converter.
+        limiterNode = graph.addNode (std::make_unique<LimiterProcessor>());
+        connectStereo (masterNode->nodeID, limiterNode->nodeID);
+        connectStereo (limiterNode->nodeID, audioOutputNode->nodeID);
+
+        // Metronome click is summed in after the master fader (into the limiter),
+        // so it's always audible but still protected by the limiter.
+        metronomeNode = graph.addNode (std::make_unique<MetronomeProcessor> (transport));
+        connectStereo (metronomeNode->nodeID, limiterNode->nodeID);
     }
 
     void AudioEngine::buildBuses()
@@ -479,6 +488,54 @@ namespace freequency::engine
 
         if (auto* master = getStripProcessor (masterNode->nodeID))
             master->setGain (mixer.getMasterBus().getVolume());
+
+        // Re-apply global processor state (these nodes are recreated on rebuild).
+        if (metronomeNode != nullptr)
+            if (auto* node = graph.getNodeForId (metronomeNode->nodeID))
+                if (auto* m = dynamic_cast<MetronomeProcessor*> (node->getProcessor()))
+                {
+                    m->setEnabled (metronomeOn);
+                    m->setBeatsPerBar (currentProject->getTimeline().getTimeSigNumerator());
+                }
+
+        if (limiterNode != nullptr)
+            if (auto* node = graph.getNodeForId (limiterNode->nodeID))
+                if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+                    l->setEnabled (limiterOn);
+    }
+
+    void AudioEngine::setMetronomeEnabled (bool e)
+    {
+        metronomeOn = e;
+        if (auto* node = graph.getNodeForId (metronomeNode->nodeID))
+            if (auto* m = dynamic_cast<MetronomeProcessor*> (node->getProcessor()))
+                m->setEnabled (e);
+    }
+
+    bool AudioEngine::isMetronomeEnabled() const noexcept
+    {
+        if (metronomeNode != nullptr)
+            if (auto* node = graph.getNodeForId (metronomeNode->nodeID))
+                if (auto* m = dynamic_cast<MetronomeProcessor*> (node->getProcessor()))
+                    return m->isEnabled();
+        return false;
+    }
+
+    void AudioEngine::setLimiterEnabled (bool e)
+    {
+        limiterOn = e;
+        if (auto* node = graph.getNodeForId (limiterNode->nodeID))
+            if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+                l->setEnabled (e);
+    }
+
+    bool AudioEngine::isLimiterEnabled() const noexcept
+    {
+        if (limiterNode != nullptr)
+            if (auto* node = graph.getNodeForId (limiterNode->nodeID))
+                if (auto* l = dynamic_cast<LimiterProcessor*> (node->getProcessor()))
+                    return l->isEnabled();
+        return false;
     }
 
     float AudioEngine::getTrackLevel (const models::Track& track) const noexcept

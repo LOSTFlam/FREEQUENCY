@@ -26,6 +26,8 @@ target_sources(FREEQUENCY PRIVATE
     Engine/MidiSourceProcessor.cpp
     Engine/AudioClipProcessor.cpp
     Engine/SynthProcessor.cpp
+    Engine/MetronomeProcessor.cpp
+    Engine/LimiterProcessor.cpp
     Engine/PluginManager.cpp
 
     # ── Models ───────────────────────────────────────────────────────────────
