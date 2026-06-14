@@ -87,6 +87,16 @@ namespace freequency::engine
         }
 
         deviceManager.addAudioCallback (this);
+
+        // Enable every available hardware MIDI input and route it here for live
+        // monitoring + recording.
+        for (const auto& d : juce::MidiInput::getAvailableDevices())
+        {
+            deviceManager.setMidiInputDeviceEnabled (d.identifier, true);
+            deviceManager.addMidiInputDeviceCallback (d.identifier, this);
+            enabledMidiInputs.add (d.identifier);
+        }
+
         running = true;
         lastReportedSamples = 0;
         startTimer (250);
@@ -122,6 +132,9 @@ namespace freequency::engine
             return;
 
         stopTimer();
+        for (const auto& id : enabledMidiInputs)
+            deviceManager.removeMidiInputDeviceCallback (id, this);
+        enabledMidiInputs.clear();
         deviceManager.removeAudioCallback (this);
         deviceManager.closeAudioDevice();
         running = false;
@@ -612,8 +625,68 @@ namespace freequency::engine
         {
             const auto m = noteOn ? juce::MidiMessage::noteOn (1, noteNumber, velocity)
                                   : juce::MidiMessage::noteOff (1, noteNumber);
-            src->pushLiveMessage (m);
+            src->pushLiveMessage (m); // live monitoring
+
+            // Capture into the recording buffer if armed & rolling.
+            if (midiRecording.load (std::memory_order_relaxed) && transport.isPlaying())
+            {
+                auto rec = m;
+                rec.setTimeStamp (transport.getPositionSeconds());
+                const juce::ScopedLock sl (midiRecLock);
+                recordedMidi.addEvent (rec);
+            }
         }
+    }
+
+    void AudioEngine::handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage& message)
+    {
+        if (liveTargetTrack == nullptr)
+            return;
+
+        if (message.isNoteOnOrOff())
+            sendLiveNote (*liveTargetTrack, message.getNoteNumber(),
+                          message.getFloatVelocity(), message.isNoteOn());
+    }
+
+    void AudioEngine::startMidiRecording() noexcept
+    {
+        {
+            const juce::ScopedLock sl (midiRecLock);
+            recordedMidi.clear();
+        }
+        midiRecStartSeconds = transport.getPositionSeconds();
+        midiRecording.store (true, std::memory_order_relaxed);
+    }
+
+    void AudioEngine::stopMidiRecording()
+    {
+        midiRecording.store (false, std::memory_order_relaxed);
+
+        const juce::ScopedLock sl (midiRecLock);
+        if (recordedMidi.getNumEvents() == 0)
+            return;
+
+        auto* midiTrack = dynamic_cast<models::MidiTrack*> (liveTargetTrack);
+        if (midiTrack == nullptr)
+            return;
+
+        auto* clip = midiTrack->addClip();
+        clip->name = "Recorded";
+        clip->startTime = midiRecStartSeconds;
+
+        double maxEnd = 0.0;
+        for (int i = 0; i < recordedMidi.getNumEvents(); ++i)
+        {
+            auto m = recordedMidi.getEventPointer (i)->message;
+            const double t = juce::jmax (0.0, m.getTimeStamp() - midiRecStartSeconds);
+            m.setTimeStamp (t);
+            clip->sequence.addEvent (m);
+            maxEnd = juce::jmax (maxEnd, t);
+        }
+        clip->sequence.updateMatchedPairs();
+        clip->length = maxEnd + 0.5;
+
+        rebuildSequences();
     }
 
     juce::AudioProcessor* AudioEngine::getInsertProcessor (const models::Track& track, int slot) const noexcept

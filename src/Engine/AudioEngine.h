@@ -49,7 +49,8 @@ namespace freequency::engine
         snapshot publication — never a lock in processBlock.
     */
     class AudioEngine : private juce::Timer,
-                        public juce::AudioIODeviceCallback
+                        public juce::AudioIODeviceCallback,
+                        public juce::MidiInputCallback
     {
     public:
         AudioEngine();
@@ -77,8 +78,18 @@ namespace freequency::engine
         void syncParametersFromModel();
 
         /** Send a live note on/off to a MIDI track's instrument (computer-keyboard
-            piano). No-op for non-MIDI tracks. */
+            piano). No-op for non-MIDI tracks. Also captured when MIDI recording. */
         void sendLiveNote (const models::Track& track, int noteNumber, float velocity, bool noteOn) noexcept;
+
+        /** The MIDI track that live input (QWERTY / hardware) is monitored into. */
+        void setLiveTargetTrack (models::Track* track) noexcept { liveTargetTrack = track; }
+
+        /** Begin/stop capturing live MIDI into a new clip on the live target track. */
+        void startMidiRecording() noexcept;
+        void stopMidiRecording();
+
+        // juce::MidiInputCallback — hardware MIDI in.
+        void handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage&) override;
 
         // ── Disk recording (punch-in) ───────────────────────────────────────────
         /** Begin streaming the audio input to `file` as a WAV. Recording starts
@@ -206,6 +217,14 @@ namespace freequency::engine
         juce::File recordFile;
         double recordStartSeconds { 0.0 };
         std::atomic<bool> recording { false };
+
+        // Live MIDI input + MIDI recording.
+        models::Track* liveTargetTrack { nullptr };
+        std::atomic<bool> midiRecording { false };
+        juce::CriticalSection midiRecLock;
+        juce::MidiMessageSequence recordedMidi;
+        double midiRecStartSeconds { 0.0 };
+        juce::StringArray enabledMidiInputs;
 
         std::atomic<float> masterLevel { 0.0f };
         bool metronomeOn { false };

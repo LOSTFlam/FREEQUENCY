@@ -313,17 +313,24 @@ namespace freequency::ui
         auto& t = audioEngine.getTransport();
         if (audioEngine.isRecording())
         {
-            audioEngine.stopRecording();
+            audioEngine.stopRecording();      // audio input -> wav clip
+            audioEngine.stopMidiRecording();  // live MIDI -> midi clip
             t.stop();
+            afterClipChange();                // show any newly recorded clips
         }
         else
         {
+            pushUndo();
+            audioEngine.setLiveTargetTrack (pianoTargetTrack());
+
             const auto dir = juce::File::getSpecialLocation (juce::File::userMusicDirectory)
                                  .getChildFile ("FREEQUENCY Recordings");
             const auto file = dir.getChildFile ("rec_" + juce::Time::getCurrentTime()
                                  .formatted ("%Y%m%d_%H%M%S") + ".wav");
-            if (audioEngine.startRecording (file))
-                t.play();
+
+            audioEngine.startRecording (file);     // audio (no-op without an input)
+            audioEngine.startMidiRecording();      // capture QWERTY + hardware MIDI
+            t.play();
         }
     }
 
@@ -592,6 +599,7 @@ namespace freequency::ui
         // Ableton/FL-style QWERTY layout: a w s e d f t g y h u j k => C..C.
         static const char* layout = "AWSEDFTGYHUJK";
         auto* mt = pianoTargetTrack();
+        audioEngine.setLiveTargetTrack (mt);
         bool handled = false;
 
         for (int i = 0; i < 13; ++i)
