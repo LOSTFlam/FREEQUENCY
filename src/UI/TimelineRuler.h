@@ -6,7 +6,7 @@
 
 #include <functional>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         TimelineRuler — the bar/beat ruler above the lanes.
@@ -39,4 +39,4 @@ namespace omnidaw::ui
         UIContext& context;
         int viewOffsetX { 0 };
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

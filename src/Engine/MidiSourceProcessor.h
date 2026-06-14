@@ -6,7 +6,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         MidiSourceProcessor — the per-MIDI-track sequencer node.
@@ -63,4 +63,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiSourceProcessor)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

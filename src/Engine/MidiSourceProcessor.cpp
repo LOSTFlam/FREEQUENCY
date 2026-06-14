@@ -1,6 +1,6 @@
 #include "Engine/MidiSourceProcessor.h"
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     MidiSourceProcessor::MidiSourceProcessor (Transport& sharedTransport)
         : AudioProcessor (BusesProperties()), // no audio buses: MIDI only
@@ -62,4 +62,4 @@ namespace omnidaw::engine
             midi.addEvent (meh->message, offset);
         }
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

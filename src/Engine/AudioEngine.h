@@ -17,11 +17,11 @@
 #include <unordered_map>
 #include <vector>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
 
     /**
-        AudioEngine — owns the real-time audio infrastructure of OmniDAW.
+        AudioEngine — owns the real-time audio infrastructure of FREEQUENCY.
 
         It is the AudioIODeviceCallback itself (rather than delegating to a
         juce::AudioProcessorPlayer) so that it can own the Transport: advancing the
@@ -178,7 +178,7 @@ namespace omnidaw::engine
         // pushes samples into the ThreadedWriter's lock-free FIFO. The CriticalSection
         // guards only the (rare) swap of the active writer pointer — this mirrors
         // JUCE's reference AudioRecordingDemo.
-        juce::TimeSliceThread recordThread { "OmniDAW Recorder" };
+        juce::TimeSliceThread recordThread { "FREEQUENCY Recorder" };
         std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> threadedWriter;
         juce::CriticalSection writerLock;
         std::atomic<juce::AudioFormatWriter::ThreadedWriter*> activeWriter { nullptr };
@@ -192,4 +192,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioEngine)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

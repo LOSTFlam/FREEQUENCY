@@ -3,10 +3,10 @@
 #include "Models/Timeline.h"
 #include "Models/Mixer.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
-        Project — the document root of OmniDAW.
+        Project — the document root of FREEQUENCY.
 
         Aggregates the two top-level models the rest of the app hangs off:
           - Timeline : tracks, clips and the musical grid.
@@ -37,4 +37,4 @@ namespace omnidaw::models
         Timeline timeline;
         Mixer mixer;
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

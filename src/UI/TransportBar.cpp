@@ -1,9 +1,9 @@
 #include "UI/TransportBar.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
 #include "Models/ProjectSerializer.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     TransportBar::TransportBar (UIContext& ctx)
         : context (ctx)
@@ -30,7 +30,7 @@ namespace omnidaw::ui
 
         addAndMakeVisible (recordButton);
         recordButton.setClickingTogglesState (true);
-        recordButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::danger));
+        recordButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
         recordButton.onClick = [this]
         {
             auto& t = context.engine.getTransport();
@@ -45,7 +45,7 @@ namespace omnidaw::ui
             else
             {
                 const auto dir = juce::File::getSpecialLocation (juce::File::userMusicDirectory)
-                                     .getChildFile ("OmniDAW Recordings");
+                                     .getChildFile ("FREEQUENCY Recordings");
                 const auto file = dir.getChildFile ("rec_" + juce::Time::getCurrentTime()
                                      .formatted ("%Y%m%d_%H%M%S") + ".wav");
 
@@ -93,7 +93,7 @@ namespace omnidaw::ui
         saveButton.onClick = [this]
         {
             fileChooser = std::make_unique<juce::FileChooser> (
-                "Save project", juce::File(), "*.omni");
+                "Save project", juce::File(), "*.freq");
             fileChooser->launchAsync (
                 juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
                 [this] (const juce::FileChooser& fc)
@@ -102,7 +102,7 @@ namespace omnidaw::ui
                     if (file == juce::File())
                         return;
                     if (file.getFileExtension().isEmpty())
-                        file = file.withFileExtension ("omni");
+                        file = file.withFileExtension ("freq");
                     models::ProjectSerializer::saveToFile (context.project, file);
                 });
         };
@@ -111,7 +111,7 @@ namespace omnidaw::ui
         openButton.onClick = [this]
         {
             fileChooser = std::make_unique<juce::FileChooser> (
-                "Open project", juce::File(), "*.omni");
+                "Open project", juce::File(), "*.freq");
             fileChooser->launchAsync (
                 juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                 [this] (const juce::FileChooser& fc)
@@ -134,12 +134,12 @@ namespace omnidaw::ui
         addAndMakeVisible (positionLabel);
         positionLabel.setJustificationType (juce::Justification::centred);
         positionLabel.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 22.0f, juce::Font::bold));
-        positionLabel.setColour (juce::Label::textColourId, juce::Colour (OmniLookAndFeel::accent));
+        positionLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
 
         addAndMakeVisible (tempoCaption);
         tempoCaption.setText ("BPM", juce::dontSendNotification);
         tempoCaption.setJustificationType (juce::Justification::centredLeft);
-        tempoCaption.setColour (juce::Label::textColourId, juce::Colour (OmniLookAndFeel::textDim));
+        tempoCaption.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
         tempoCaption.setFont (juce::FontOptions (11.0f));
 
         addAndMakeVisible (tempoLabel);
@@ -196,19 +196,19 @@ namespace omnidaw::ui
 
     void TransportBar::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::panel));
-        g.setColour (juce::Colour (OmniLookAndFeel::outline));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
         // Master meter (right side).
         auto meterArea = getLocalBounds().removeFromRight (160).reduced (12, 16);
-        g.setColour (juce::Colour (OmniLookAndFeel::background));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::background));
         g.fillRoundedRectangle (meterArea.toFloat(), 3.0f);
 
         const auto level = juce::jlimit (0.0f, 1.0f, meterLevel);
         auto filled = meterArea.toFloat().withWidth (meterArea.getWidth() * level);
-        const auto meterColour = level > 0.9f ? juce::Colour (OmniLookAndFeel::danger)
-                                              : juce::Colour (OmniLookAndFeel::accent);
+        const auto meterColour = level > 0.9f ? juce::Colour (FreequencyLookAndFeel::danger)
+                                              : juce::Colour (FreequencyLookAndFeel::accent);
         g.setColour (meterColour);
         g.fillRoundedRectangle (filled, 3.0f);
     }
@@ -244,4 +244,4 @@ namespace omnidaw::ui
 
         // Right area is reserved for the meter (painted in paint()).
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

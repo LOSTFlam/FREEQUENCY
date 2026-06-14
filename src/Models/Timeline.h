@@ -4,7 +4,7 @@
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         Timeline — the ordered collection of tracks plus the musical grid.
@@ -59,4 +59,4 @@ namespace omnidaw::models
         int    timeSigNumerator { 4 };
         int    timeSigDenominator { 4 };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

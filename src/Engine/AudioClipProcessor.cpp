@@ -1,6 +1,6 @@
 #include "Engine/AudioClipProcessor.h"
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     AudioClipProcessor::AudioClipProcessor (Transport& sharedTransport)
         : AudioProcessor (BusesProperties()
@@ -73,4 +73,4 @@ namespace omnidaw::engine
             }
         }
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

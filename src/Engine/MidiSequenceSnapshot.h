@@ -2,7 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         MidiSequenceSnapshot — an immutable, reference-counted view of a track's
@@ -36,4 +36,4 @@ namespace omnidaw::engine
         /** One past the last event sample; lets readers early-out cheaply. */
         juce::int64 endSample { 0 };
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

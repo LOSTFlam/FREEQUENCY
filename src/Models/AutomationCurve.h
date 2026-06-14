@@ -5,7 +5,7 @@
 #include <vector>
 #include <algorithm>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         AutomationCurve — a time-ordered set of breakpoints driving a parameter.
@@ -102,4 +102,4 @@ namespace omnidaw::models
     private:
         std::vector<Point> points;
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

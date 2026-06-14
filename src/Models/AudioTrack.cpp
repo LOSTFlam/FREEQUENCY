@@ -1,6 +1,6 @@
 #include "Models/AudioTrack.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     AudioTrack::AudioTrack()
         : Track (TrackType::audio)
@@ -14,4 +14,4 @@ namespace omnidaw::models
         auto* raw = static_cast<AudioClip*> (addClipInternal (std::move (clip)));
         return raw;
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

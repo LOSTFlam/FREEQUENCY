@@ -4,7 +4,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         PlayheadOverlay — a transparent, click-through layer drawn over the lanes
@@ -40,7 +40,7 @@ namespace omnidaw::ui
             if (lastX < 0 || lastX > getWidth())
                 return;
 
-            g.setColour (juce::Colour (OmniLookAndFeel_accent));
+            g.setColour (juce::Colour (FreequencyLookAndFeel_accent));
             g.drawVerticalLine (lastX, 0.0f, (float) getHeight());
 
             juce::Path tri;
@@ -52,10 +52,10 @@ namespace omnidaw::ui
 
     private:
         // Avoid pulling the L&F header in; inline the accent colour value.
-        static constexpr juce::uint32 OmniLookAndFeel_accent = 0xff2dd4bf;
+        static constexpr juce::uint32 FreequencyLookAndFeel_accent = 0xff2dd4bf;
 
         UIContext& context;
         int viewOffsetX { 0 };
         int lastX { -1 };
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

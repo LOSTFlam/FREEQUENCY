@@ -1,13 +1,13 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# OmniDAW standalone application target
+# FREEQUENCY standalone application target
 # ──────────────────────────────────────────────────────────────────────────────
 
 # juce_add_gui_app creates a GUI application target. Even though Phase 1 ships no
 # real UI, a DAW is fundamentally a windowed application, so we use the GUI app
 # wrapper from the start to avoid restructuring later.
-juce_add_gui_app(OmniDAW
-    PRODUCT_NAME    "OmniDAW"
-    COMPANY_NAME    "OmniDAW"
+juce_add_gui_app(FREEQUENCY
+    PRODUCT_NAME    "FREEQUENCY"
+    COMPANY_NAME    "FREEQUENCY"
     VERSION         ${PROJECT_VERSION}
     # A console is invaluable while bringing up the audio engine.
     NEEDS_CURL                FALSE
@@ -15,9 +15,9 @@ juce_add_gui_app(OmniDAW
 
 # Generates a JuceHeader-free build: we include individual module headers
 # explicitly. This keeps compile times down and dependencies obvious.
-juce_generate_juce_header(OmniDAW)
+juce_generate_juce_header(FREEQUENCY)
 
-target_sources(OmniDAW PRIVATE
+target_sources(FREEQUENCY PRIVATE
     Main.cpp
 
     # ── Engine ───────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ target_sources(OmniDAW PRIVATE
     Models/ProjectSerializer.cpp
 
     # ── UI ─────────────────────────────────────────────────────────────────────
-    UI/OmniLookAndFeel.cpp
+    UI/FreequencyLookAndFeel.cpp
     UI/TransportBar.cpp
     UI/TrackHeaderComponent.cpp
     UI/TrackLaneComponent.cpp
@@ -50,16 +50,16 @@ target_sources(OmniDAW PRIVATE
     UI/MainComponent.cpp)
 
 # Let every source file include headers relative to src/ (e.g. "Models/Track.h").
-target_include_directories(OmniDAW PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(FREEQUENCY PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_compile_features(OmniDAW PRIVATE cxx_std_20)
+target_compile_features(FREEQUENCY PRIVATE cxx_std_20)
 
 # ── Preprocessor configuration ───────────────────────────────────────────────
-target_compile_definitions(OmniDAW PRIVATE
+target_compile_definitions(FREEQUENCY PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:OmniDAW,JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:OmniDAW,JUCE_VERSION>"
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:FREEQUENCY,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:FREEQUENCY,JUCE_VERSION>"
     # Plugin hosting toggles. VST3 hosting is wired up in Phase 2 but we enable
     # the format here so the module compiles with the host code paths present.
     JUCE_PLUGINHOST_VST3=1
@@ -67,7 +67,7 @@ target_compile_definitions(OmniDAW PRIVATE
     JUCE_PLUGINHOST_LADSPA=1)
 
 # ── JUCE module dependencies ─────────────────────────────────────────────────
-target_link_libraries(OmniDAW PRIVATE
+target_link_libraries(FREEQUENCY PRIVATE
     juce::juce_audio_basics
     juce::juce_audio_devices
     juce::juce_audio_formats
@@ -85,8 +85,8 @@ target_link_libraries(OmniDAW PRIVATE
     juce::juce_recommended_warning_flags)
 
 # Link-time optimisation is great for release performance but slow to link, which
-# hurts iteration. Default ON; configure with -DOMNIDAW_ENABLE_LTO=OFF to disable.
-option(OMNIDAW_ENABLE_LTO "Enable link-time optimisation" ON)
-if(OMNIDAW_ENABLE_LTO)
-    target_link_libraries(OmniDAW PRIVATE juce::juce_recommended_lto_flags)
+# hurts iteration. Default ON; configure with -DFREEQUENCY_ENABLE_LTO=OFF to disable.
+option(FREEQUENCY_ENABLE_LTO "Enable link-time optimisation" ON)
+if(FREEQUENCY_ENABLE_LTO)
+    target_link_libraries(FREEQUENCY PRIVATE juce::juce_recommended_lto_flags)
 endif()

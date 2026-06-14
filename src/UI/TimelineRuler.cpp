@@ -1,12 +1,12 @@
 #include "UI/TimelineRuler.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     void TimelineRuler::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::panelLight));
-        g.setColour (juce::Colour (OmniLookAndFeel::outline));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::panelLight));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
         const auto& timeline = context.project.getTimeline();
@@ -26,13 +26,13 @@ namespace omnidaw::ui
             if (x > getWidth())
                 break;
 
-            g.setColour (juce::Colour (OmniLookAndFeel::textPrimary));
+            g.setColour (juce::Colour (FreequencyLookAndFeel::textPrimary));
             g.drawVerticalLine (x, 0.0f, (float) getHeight());
             g.drawText (juce::String (bar + 1), x + 4, 2, 40, getHeight() - 4,
                         juce::Justification::topLeft, false);
 
             // Beat ticks within the bar.
-            g.setColour (juce::Colour (OmniLookAndFeel::textDim).withAlpha (0.5f));
+            g.setColour (juce::Colour (FreequencyLookAndFeel::textDim).withAlpha (0.5f));
             for (int b = 1; b < beatsPerBar; ++b)
             {
                 const int bx = context.secondsToX (t + b * secsPerBeat) - viewOffsetX;
@@ -40,4 +40,4 @@ namespace omnidaw::ui
             }
         }
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

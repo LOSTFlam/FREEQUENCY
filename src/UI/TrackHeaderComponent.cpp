@@ -1,7 +1,7 @@
 #include "UI/TrackHeaderComponent.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     TrackHeaderComponent::TrackHeaderComponent (UIContext& ctx, models::Track& track)
         : context (ctx), trackRef (track)
@@ -15,11 +15,11 @@ namespace omnidaw::ui
         addAndMakeVisible (typeLabel);
         typeLabel.setText (track.getTypeName(), juce::dontSendNotification);
         typeLabel.setFont (juce::FontOptions (10.0f));
-        typeLabel.setColour (juce::Label::textColourId, juce::Colour (OmniLookAndFeel::textDim));
+        typeLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
 
         addAndMakeVisible (muteButton);
         muteButton.setClickingTogglesState (true);
-        muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::danger));
+        muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
         muteButton.onClick = [this]
         {
             trackRef.setMuted (muteButton.getToggleState());
@@ -28,7 +28,7 @@ namespace omnidaw::ui
 
         addAndMakeVisible (soloButton);
         soloButton.setClickingTogglesState (true);
-        soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::accentWarm));
+        soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
         soloButton.onClick = [this]
         {
             trackRef.setSoloed (soloButton.getToggleState());
@@ -38,7 +38,7 @@ namespace omnidaw::ui
         addAndMakeVisible (autoButton);
         autoButton.setClickingTogglesState (true);
         autoButton.setToggleState (track.volumeAutomationEnabled, juce::dontSendNotification);
-        autoButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::accent));
+        autoButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accent));
         autoButton.onClick = [this]
         {
             trackRef.volumeAutomationEnabled = autoButton.getToggleState();
@@ -80,13 +80,13 @@ namespace omnidaw::ui
 
     void TrackHeaderComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::panel));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
 
         // Colour swatch down the left edge identifies the track at a glance.
         g.setColour (trackRef.colour);
         g.fillRect (0, 0, 5, getHeight());
 
-        g.setColour (juce::Colour (OmniLookAndFeel::outline));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
     }
 
@@ -112,4 +112,4 @@ namespace omnidaw::ui
         r.removeFromTop (4);
         volumeSlider.setBounds (r.removeFromTop (16));
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

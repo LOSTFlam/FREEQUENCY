@@ -4,7 +4,7 @@
 
 #include <vector>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         AutomationSnapshot — immutable, audio-thread-ready sampling of an
@@ -52,4 +52,4 @@ namespace omnidaw::engine
             return nodes.back().value;
         }
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

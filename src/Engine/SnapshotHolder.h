@@ -2,7 +2,7 @@
 
 #include <juce_core/juce_core.h>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         SnapshotHolder<T> — lock-free hand-off of immutable, reference-counted
@@ -85,4 +85,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnapshotHolder)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

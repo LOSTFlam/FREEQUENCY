@@ -2,7 +2,7 @@
 
 #include "Models/Project.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         ProjectSerializer — converts a Project to/from a juce::ValueTree and an XML
@@ -22,4 +22,4 @@ namespace omnidaw::models
         static bool saveToFile (const Project&, const juce::File&);
         static bool loadFromFile (Project&, const juce::File&);
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

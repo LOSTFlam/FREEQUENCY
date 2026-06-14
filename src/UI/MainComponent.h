@@ -3,7 +3,7 @@
 #include "Models/Project.h"
 #include "Engine/AudioEngine.h"
 #include "UI/UIContext.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 #include "UI/TransportBar.h"
 #include "UI/ArrangeView.h"
 #include "UI/MixerView.h"
@@ -12,7 +12,7 @@
 
 #include <memory>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         MainComponent — the application root: owns the document (Project), the
@@ -35,7 +35,7 @@ namespace omnidaw::ui
         void buildDemoProject();
         void toggleMixer();
 
-        OmniLookAndFeel lookAndFeel;
+        FreequencyLookAndFeel lookAndFeel;
 
         models::Project project;
         engine::AudioEngine audioEngine;
@@ -50,4 +50,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

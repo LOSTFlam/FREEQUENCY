@@ -1,8 +1,8 @@
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
-    OmniLookAndFeel::OmniLookAndFeel()
+    FreequencyLookAndFeel::FreequencyLookAndFeel()
     {
         setColour (juce::ResizableWindow::backgroundColourId, juce::Colour (background));
         setColour (juce::DocumentWindow::textColourId,        juce::Colour (textPrimary));
@@ -27,7 +27,7 @@ namespace omnidaw::ui
         setColour (juce::PopupMenu::highlightedTextColourId,  juce::Colour (background));
     }
 
-    void OmniLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
+    void FreequencyLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                                             float sliderPos, float startAngle, float endAngle,
                                             juce::Slider&)
     {
@@ -53,7 +53,7 @@ namespace omnidaw::ui
         g.fillEllipse (juce::Rectangle<float> (lineW, lineW).withCentre (thumb));
     }
 
-    void OmniLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
+    void FreequencyLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
                                             float sliderPos, float, float,
                                             juce::Slider::SliderStyle style, juce::Slider& slider)
     {
@@ -87,7 +87,7 @@ namespace omnidaw::ui
         juce::ignoreUnused (slider);
     }
 
-    void OmniLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
+    void FreequencyLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
                                                 const juce::Colour& backgroundColour,
                                                 bool highlighted, bool down)
     {
@@ -103,4 +103,4 @@ namespace omnidaw::ui
         g.setColour (juce::Colour (outline));
         g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

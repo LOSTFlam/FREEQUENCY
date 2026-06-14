@@ -7,7 +7,7 @@
 #include <functional>
 #include <memory>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         TransportBar — the top control strip: transport, tempo, time display,
@@ -60,4 +60,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TransportBar)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

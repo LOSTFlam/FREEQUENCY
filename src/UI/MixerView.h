@@ -5,7 +5,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         MixerView — the mixing console: a channel strip per track, then per FX/
@@ -37,4 +37,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MixerView)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

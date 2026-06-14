@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     namespace
     {
@@ -48,7 +48,7 @@ namespace omnidaw::engine
     bool TrackProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     {
         // We only support matching mono or stereo in/out; the graph runs in
-        // stereo throughout OmniDAW.
+        // stereo throughout FREEQUENCY.
         const auto& mainOut = layouts.getMainOutputChannelSet();
 
         if (mainOut != juce::AudioChannelSet::mono()
@@ -123,4 +123,4 @@ namespace omnidaw::engine
         const float previous = outputLevel.load (std::memory_order_relaxed) * 0.78f;
         outputLevel.store (juce::jmax (peak, previous), std::memory_order_relaxed);
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

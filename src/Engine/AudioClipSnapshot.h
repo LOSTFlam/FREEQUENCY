@@ -6,7 +6,7 @@
 
 #include <vector>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         AudioClipSnapshot — immutable, audio-thread-ready view of an audio track's
@@ -39,4 +39,4 @@ namespace omnidaw::engine
         juce::OwnedArray<juce::AudioBuffer<float>> buffers; // resampled source data
         std::vector<Region> regions;
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

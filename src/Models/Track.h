@@ -8,7 +8,7 @@
 
 #include <atomic>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     enum class TrackType
     {
@@ -117,4 +117,4 @@ namespace omnidaw::models
         std::atomic<bool>  mute   { false };
         std::atomic<bool>  solo   { false };
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

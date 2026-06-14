@@ -1,6 +1,6 @@
 #include "Models/Clip.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     Clip::Clip (ClipType clipType)
         : type (clipType)
@@ -18,4 +18,4 @@ namespace omnidaw::models
     {
         name = "MIDI Clip";
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

@@ -8,7 +8,7 @@
 
 #include <atomic>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         TrackProcessor — the audio-graph node that represents one mixer strip.
@@ -33,7 +33,7 @@ namespace omnidaw::engine
         arrive from the message thread purely through std::atomics; the audio
         thread reads them once per block and feeds juce::SmoothedValue ramps so
         there are no zipper-noise discontinuities. This is the pattern every node
-        in OmniDAW follows.
+        in FREEQUENCY follows.
     */
     class TrackProcessor final : public juce::AudioProcessor
     {
@@ -126,4 +126,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackProcessor)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

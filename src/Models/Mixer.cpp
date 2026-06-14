@@ -1,6 +1,6 @@
 #include "Models/Mixer.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     Bus::Bus (Kind busKind)
         : kind (busKind)
@@ -40,4 +40,4 @@ namespace omnidaw::models
             if (buses[i] != nullptr && buses[i]->getKind() != Bus::Kind::master)
                 buses.remove (i);
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

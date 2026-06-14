@@ -1,7 +1,7 @@
 #include "UI/MixerView.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     MixerView::MixerView (UIContext& ctx)
         : context (ctx)
@@ -62,7 +62,7 @@ namespace omnidaw::ui
 
     void MixerView::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::background));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
     }
 
     void MixerView::resized()
@@ -79,4 +79,4 @@ namespace omnidaw::ui
         for (int i = 0; i < strips.size(); ++i)
             strips[i]->setBounds (i * stripWidth, 0, stripWidth, stripContainer.getHeight());
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

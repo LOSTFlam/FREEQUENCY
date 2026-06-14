@@ -4,7 +4,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /** Discriminator for the polymorphic Clip hierarchy.
 
@@ -109,4 +109,4 @@ namespace omnidaw::models
         /** The note/CC data for this clip, timestamped relative to startTime. */
         juce::MidiMessageSequence sequence;
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

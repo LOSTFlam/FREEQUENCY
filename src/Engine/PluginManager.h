@@ -2,7 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         PluginManager — discovery and instantiation of VST3 / AU plugins.
@@ -61,4 +61,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginManager)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

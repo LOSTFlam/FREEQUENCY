@@ -5,7 +5,7 @@
 
 #include <unordered_map>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     namespace ids
     {
@@ -314,4 +314,4 @@ namespace omnidaw::models
 
         return false;
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

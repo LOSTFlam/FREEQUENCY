@@ -2,10 +2,10 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
-        SynthProcessor — OmniDAW's built-in polyphonic instrument.
+        SynthProcessor — FREEQUENCY's built-in polyphonic instrument.
 
         Every MIDI track gets one of these as its default instrument so the DAW
         makes sound out of the box, with zero external plugins installed. When the
@@ -33,7 +33,7 @@ namespace omnidaw::engine
 
         bool isBusesLayoutSupported (const BusesLayout&) const override;
 
-        const juce::String getName() const override { return "OmniSynth"; }
+        const juce::String getName() const override { return "FreequencySynth"; }
 
         bool acceptsMidi() const override  { return true; }
         bool producesMidi() const override { return false; }
@@ -55,4 +55,4 @@ namespace omnidaw::engine
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SynthProcessor)
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

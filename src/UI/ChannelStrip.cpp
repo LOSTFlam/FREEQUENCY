@@ -1,7 +1,7 @@
 #include "UI/ChannelStrip.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     ChannelStrip::ChannelStrip (UIContext& ctx, Role r, models::Track* t, models::Bus* b)
         : context (ctx), role (r), track (t), bus (b)
@@ -40,7 +40,7 @@ namespace omnidaw::ui
             addAndMakeVisible (muteButton);
             muteButton.setClickingTogglesState (true);
             muteButton.setToggleState (track->isMuted(), juce::dontSendNotification);
-            muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::danger));
+            muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
             muteButton.onClick = [this]
             {
                 track->setMuted (muteButton.getToggleState());
@@ -50,7 +50,7 @@ namespace omnidaw::ui
             addAndMakeVisible (soloButton);
             soloButton.setClickingTogglesState (true);
             soloButton.setToggleState (track->isSoloed(), juce::dontSendNotification);
-            soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::accentWarm));
+            soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
             soloButton.onClick = [this]
             {
                 track->setSoloed (soloButton.getToggleState());
@@ -72,7 +72,7 @@ namespace omnidaw::ui
                 lbl->setText (fxBus->name, juce::dontSendNotification);
                 lbl->setFont (juce::FontOptions (9.0f));
                 lbl->setJustificationType (juce::Justification::centred);
-                lbl->setColour (juce::Label::textColourId, juce::Colour (OmniLookAndFeel::textDim));
+                lbl->setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
                 addAndMakeVisible (lbl);
 
                 auto* knob = sendKnobs.add (new juce::Slider());
@@ -158,8 +158,8 @@ namespace omnidaw::ui
 
     void ChannelStrip::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (role == Role::master ? OmniLookAndFeel::panelLight
-                                                      : OmniLookAndFeel::panel));
+        g.fillAll (juce::Colour (role == Role::master ? FreequencyLookAndFeel::panelLight
+                                                      : FreequencyLookAndFeel::panel));
 
         // Colour band at the top for tracks/buses.
         if (role != Role::master)
@@ -170,19 +170,19 @@ namespace omnidaw::ui
             g.fillRect (0, 0, getWidth(), 4);
         }
 
-        g.setColour (juce::Colour (OmniLookAndFeel::outline));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
         g.drawVerticalLine (getWidth() - 1, 0.0f, (float) getHeight());
 
         // Meter beside the fader (drawn in the reserved strip on the right of the
         // fader area). Bounds computed to match resized().
         auto meterBounds = meterArea;
-        g.setColour (juce::Colour (OmniLookAndFeel::background));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::background));
         g.fillRect (meterBounds);
 
         const auto level = juce::jlimit (0.0f, 1.0f, meterLevel);
         auto filled = meterBounds.withTop (meterBounds.getBottom() - (int) (meterBounds.getHeight() * level));
-        g.setColour (level > 0.9f ? juce::Colour (OmniLookAndFeel::danger)
-                                  : juce::Colour (OmniLookAndFeel::accent));
+        g.setColour (level > 0.9f ? juce::Colour (FreequencyLookAndFeel::danger)
+                                  : juce::Colour (FreequencyLookAndFeel::accent));
         g.fillRect (filled);
     }
 
@@ -226,4 +226,4 @@ namespace omnidaw::ui
         faderArea.removeFromRight (4);
         fader.setBounds (faderArea);
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

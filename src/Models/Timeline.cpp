@@ -1,6 +1,6 @@
 #include "Models/Timeline.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     AudioTrack* Timeline::addAudioTrack()
     {
@@ -46,4 +46,4 @@ namespace omnidaw::models
         timeSigNumerator   = juce::jmax (1, numerator);
         timeSigDenominator = juce::jmax (1, denominator);
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

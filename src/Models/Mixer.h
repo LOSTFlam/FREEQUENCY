@@ -4,7 +4,7 @@
 
 #include <atomic>
 
-namespace omnidaw::models
+namespace freequency::models
 {
     /**
         Bus — a summing destination in the mixer.
@@ -69,4 +69,4 @@ namespace omnidaw::models
         juce::OwnedArray<Bus> buses; // owns master + all submix/fx buses
         Bus* masterBus { nullptr };  // non-owning convenience pointer into `buses`
     };
-} // namespace omnidaw::models
+} // namespace freequency::models

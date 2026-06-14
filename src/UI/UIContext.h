@@ -3,7 +3,7 @@
 #include "Models/Project.h"
 #include "Engine/AudioEngine.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         UIContext — the small bundle of shared state every arrange-view component
@@ -35,4 +35,4 @@ namespace omnidaw::ui
             return pixelsPerSecond > 0.0 ? (double) x / pixelsPerSecond : 0.0;
         }
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

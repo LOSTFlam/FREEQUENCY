@@ -8,7 +8,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         ArrangeView — the main editing surface: ruler, track headers and clip lanes.
@@ -71,4 +71,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ArrangeView)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

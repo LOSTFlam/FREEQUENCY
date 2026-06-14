@@ -5,7 +5,7 @@
 #include <atomic>
 #include <cmath>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     /**
         Transport — the shared, lock-free playback clock.
@@ -132,4 +132,4 @@ namespace omnidaw::engine
         std::atomic<juce::int64> loopStart      { 0 };
         std::atomic<juce::int64> loopEnd        { 0 };
     };
-} // namespace omnidaw::engine
+} // namespace freequency::engine

@@ -2,14 +2,14 @@
 
 #include <cmath>
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     namespace
     {
         constexpr int kNumVoices = 16;
 
         /** Sound that responds to every note/channel. */
-        struct OmniSound final : public juce::SynthesiserSound
+        struct FreequencySound final : public juce::SynthesiserSound
         {
             bool appliesToNote (int) override    { return true; }
             bool appliesToChannel (int) override { return true; }
@@ -33,17 +33,17 @@ namespace omnidaw::engine
             return 0.0f;
         }
 
-        class OmniVoice final : public juce::SynthesiserVoice
+        class FreequencyVoice final : public juce::SynthesiserVoice
         {
         public:
-            OmniVoice()
+            FreequencyVoice()
             {
                 adsr.setParameters ({ 0.005f, 0.12f, 0.8f, 0.25f });
             }
 
             bool canPlaySound (juce::SynthesiserSound* s) override
             {
-                return dynamic_cast<OmniSound*> (s) != nullptr;
+                return dynamic_cast<FreequencySound*> (s) != nullptr;
             }
 
             void startNote (int midiNote, float velocity,
@@ -126,9 +126,9 @@ namespace omnidaw::engine
                               .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
     {
         for (int i = 0; i < kNumVoices; ++i)
-            synth.addVoice (new OmniVoice());
+            synth.addVoice (new FreequencyVoice());
 
-        synth.addSound (new OmniSound());
+        synth.addSound (new FreequencySound());
         synth.setNoteStealingEnabled (true);
     }
 
@@ -151,4 +151,4 @@ namespace omnidaw::engine
         buffer.clear();
         synth.renderNextBlock (buffer, midi, 0, buffer.getNumSamples());
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

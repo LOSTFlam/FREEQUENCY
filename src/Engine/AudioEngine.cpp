@@ -3,7 +3,7 @@
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     using AudioGraphIOProcessor = juce::AudioProcessorGraph::AudioGraphIOProcessor;
 
@@ -74,7 +74,7 @@ namespace omnidaw::engine
 
         if (error.isNotEmpty())
         {
-            DBG ("OmniDAW AudioEngine: audio device init failed: " << error);
+            DBG ("FREEQUENCY AudioEngine: audio device init failed: " << error);
             return error;
         }
 
@@ -86,7 +86,7 @@ namespace omnidaw::engine
         if (auto* device = deviceManager.getCurrentAudioDevice())
         {
             juce::ignoreUnused (device);
-            DBG ("OmniDAW AudioEngine started on '" << device->getName()
+            DBG ("FREEQUENCY AudioEngine started on '" << device->getName()
                  << "' @ " << device->getCurrentSampleRate() << " Hz, buffer "
                  << device->getCurrentBufferSizeSamples() << " samples");
         }
@@ -171,7 +171,7 @@ namespace omnidaw::engine
     AudioEngine::NodeID AudioEngine::makeInstrumentNode (models::Track& track)
     {
         // A MIDI track plays a hosted VST3/AU instrument if one is assigned and
-        // resolvable, otherwise it falls back to the built-in OmniSynth so the
+        // resolvable, otherwise it falls back to the built-in FreequencySynth so the
         // track is always audible.
         if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&track))
         {
@@ -183,7 +183,7 @@ namespace omnidaw::engine
                 if (instance != nullptr)
                     return graph.addNode (std::move (instance))->nodeID;
 
-                DBG ("OmniDAW: instrument load failed (" << error << "), using built-in synth");
+                DBG ("FREEQUENCY: instrument load failed (" << error << "), using built-in synth");
             }
         }
 
@@ -228,7 +228,7 @@ namespace omnidaw::engine
             auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
             if (fx == nullptr)
             {
-                DBG ("OmniDAW: insert FX load failed (" << error << ")");
+                DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
                 continue;
             }
 
@@ -777,9 +777,9 @@ namespace omnidaw::engine
 
         if (delta > 0)
         {
-            DBG ("OmniDAW AudioEngine: processed " << delta
+            DBG ("FREEQUENCY AudioEngine: processed " << delta
                  << " samples (pos " << transport.getPositionSeconds() << "s)");
             lastReportedSamples = total;
         }
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

@@ -1,6 +1,6 @@
 #include "Engine/PluginManager.h"
 
-namespace omnidaw::engine
+namespace freequency::engine
 {
     PluginManager::PluginManager()
     {
@@ -38,7 +38,7 @@ namespace omnidaw::engine
             // A dead-man's-pedal file lets the scanner skip a plugin that crashed
             // it on a previous run — important for robustness with 3rd-party code.
             auto deadMansPedal = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                     .getChildFile ("OmniDAW_deadmanspedal.txt");
+                                     .getChildFile ("FREEQUENCY_deadmanspedal.txt");
 
             juce::PluginDirectoryScanner scanner (knownPlugins, *format, paths,
                                                   true, deadMansPedal, true);
@@ -66,7 +66,7 @@ namespace omnidaw::engine
             path.add (folder);
 
             auto deadMansPedal = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                     .getChildFile ("OmniDAW_deadmanspedal.txt");
+                                     .getChildFile ("FREEQUENCY_deadmanspedal.txt");
 
             juce::PluginDirectoryScanner scanner (knownPlugins, *format, path,
                                                   true, deadMansPedal, true);
@@ -116,4 +116,4 @@ namespace omnidaw::engine
     {
         knownPlugins.recreateFromXml (xml);
     }
-} // namespace omnidaw::engine
+} // namespace freequency::engine

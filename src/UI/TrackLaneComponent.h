@@ -8,7 +8,7 @@
 
 #include <memory>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         TrackLaneComponent — the timeline lane for one track, drawing its clips.
@@ -66,4 +66,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackLaneComponent)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

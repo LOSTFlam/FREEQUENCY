@@ -1,10 +1,10 @@
-# OmniDAW (FREEQUENCY)
+# FREEQUENCY (FREEQUENCY)
 
 A next-generation, **hybrid DAW** — combining FL Studio's pattern workflow with
 Cubase's linear audio/MIDI editing — built with **modern C++20** and the
 **JUCE 8** framework.
 
-OmniDAW makes sound out of the box (built-in synth), hosts VST3/AU plugins, and
+FREEQUENCY makes sound out of the box (built-in synth), hosts VST3/AU plugins, and
 ships a full arrange view, mixing console, automation and disk recording.
 
 ## Features
@@ -25,7 +25,7 @@ ships a full arrange view, mixing console, automation and disk recording.
 - **Automation**: editable per-track volume curves that drive the fader
   sample-accurately at playback.
 - **Recording**: punch-in disk recording of the audio input to 24-bit WAV.
-- **Project save/load**: `.omni` XML (ValueTree) documents.
+- **Project save/load**: `.freq` XML (ValueTree) documents.
 
 ## Architecture
 
@@ -39,7 +39,7 @@ src/
 │   ├── Mixer / Bus   (master / submix / FX routing topology)
 │   ├── AutomationCurve
 │   ├── Project    (document root)
-│   └── ProjectSerializer  (ValueTree <-> .omni XML)
+│   └── ProjectSerializer  (ValueTree <-> .freq XML)
 ├── Engine/    Real-time audio (no UI, no locks/allocation in processBlock)
 │   ├── Transport             lock-free clock
 │   ├── SnapshotHolder<T>     lock-free publish of immutable snapshots
@@ -50,7 +50,7 @@ src/
 │   ├── PluginManager         VST3/AU discovery + instantiation
 │   └── AudioEngine           graph builder + AudioIODeviceCallback + recorder
 └── UI/        Views (depend on model+engine; never the reverse)
-    ├── OmniLookAndFeel, TransportBar
+    ├── FreequencyLookAndFeel, TransportBar
     ├── ArrangeView, TrackHeaderComponent, TrackLaneComponent,
     │   TimelineRuler, PlayheadOverlay
     └── MixerView, ChannelStrip
@@ -84,13 +84,13 @@ find libstdc++):
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc
-cmake --build build --target OmniDAW -j
+cmake --build build --target FREEQUENCY -j
 ```
 
 The standalone app is produced at
-`build/src/OmniDAW_artefacts/Release/OmniDAW`.
+`build/src/FREEQUENCY_artefacts/Release/FREEQUENCY`.
 
-> Tip: add `-DOMNIDAW_ENABLE_LTO=OFF` for much faster incremental link times
+> Tip: add `-DFREEQUENCY_ENABLE_LTO=OFF` for much faster incremental link times
 > during development.
 
 ### Headless self-test
@@ -98,7 +98,7 @@ The standalone app is produced at
 The engine can be verified without a soundcard or display:
 
 ```bash
-./build/src/OmniDAW_artefacts/Release/OmniDAW --selftest
+./build/src/FREEQUENCY_artefacts/Release/FREEQUENCY --selftest
 ```
 
 This renders a MIDI note through the full graph, performs a project save/load

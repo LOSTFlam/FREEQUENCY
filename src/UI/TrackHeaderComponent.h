@@ -5,7 +5,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
         TrackHeaderComponent — the control panel for one track, shown in the fixed
@@ -43,4 +43,4 @@ namespace omnidaw::ui
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackHeaderComponent)
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

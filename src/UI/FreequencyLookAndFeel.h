@@ -2,20 +2,20 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     /**
-        OmniLookAndFeel — the application's visual identity.
+        FreequencyLookAndFeel — the application's visual identity.
 
         A single dark, modern theme applied app-wide. Centralising colours here
         keeps every component consistent and makes re-skinning trivial. The
         palette favours a near-black backdrop with a teal accent so meters,
         playheads and selections pop.
     */
-    class OmniLookAndFeel final : public juce::LookAndFeel_V4
+    class FreequencyLookAndFeel final : public juce::LookAndFeel_V4
     {
     public:
-        OmniLookAndFeel();
+        FreequencyLookAndFeel();
 
         // Shared palette (used by custom paint routines across the UI).
         static constexpr juce::uint32 background   = 0xff15171c;
@@ -41,4 +41,4 @@ namespace omnidaw::ui
                                    bool shouldDrawButtonAsHighlighted,
                                    bool shouldDrawButtonAsDown) override;
     };
-} // namespace omnidaw::ui
+} // namespace freequency::ui

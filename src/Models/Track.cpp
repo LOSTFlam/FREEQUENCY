@@ -1,6 +1,6 @@
 #include "Models/Track.h"
 
-namespace omnidaw::models
+namespace freequency::models
 {
     Track::Track (TrackType trackType)
         : type (trackType)
@@ -56,4 +56,4 @@ namespace omnidaw::models
         sendChangeMessage();
         return raw;
     }
-} // namespace omnidaw::models
+} // namespace freequency::models

@@ -6,12 +6,12 @@
 /*
     Core types shared across the whole application.
 
-    Everything in OmniDAW lives under the `omnidaw` namespace. Layer-specific
-    code is further namespaced (omnidaw::models, omnidaw::engine, omnidaw::ui)
+    Everything in FREEQUENCY lives under the `freequency` namespace. Layer-specific
+    code is further namespaced (freequency::models, freequency::engine, freequency::ui)
     so that, for example, a model `Track` and an engine `TrackProcessor` never
     collide and the dependency direction stays obvious at the call site.
 */
-namespace omnidaw
+namespace freequency
 {
     /** Musical time / transport units used throughout the models.
 
@@ -45,4 +45,4 @@ namespace omnidaw
             return juce::Colour::fromHSV (hue, 0.55f, 0.85f, 1.0f);
         }
     } // namespace defaults
-} // namespace omnidaw
+} // namespace freequency

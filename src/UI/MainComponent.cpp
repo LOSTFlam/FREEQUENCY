@@ -3,7 +3,7 @@
 #include "Models/MidiTrack.h"
 #include "Models/AudioTrack.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     namespace
     {
@@ -107,7 +107,7 @@ namespace omnidaw::ui
 
     void MainComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::background));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
     }
 
     void MainComponent::resized()
@@ -123,4 +123,4 @@ namespace omnidaw::ui
         if (mixerView != nullptr)
             mixerView->setBounds (r);
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui

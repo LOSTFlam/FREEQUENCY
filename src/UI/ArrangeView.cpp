@@ -1,7 +1,7 @@
 #include "UI/ArrangeView.h"
-#include "UI/OmniLookAndFeel.h"
+#include "UI/FreequencyLookAndFeel.h"
 
-namespace omnidaw::ui
+namespace freequency::ui
 {
     ArrangeView::ArrangeView (UIContext& ctx)
         : context (ctx), ruler (ctx), playhead (ctx)
@@ -111,12 +111,12 @@ namespace omnidaw::ui
 
     void ArrangeView::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (OmniLookAndFeel::background));
+        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
 
         // Top-left corner block above the header column.
-        g.setColour (juce::Colour (OmniLookAndFeel::panelLight));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::panelLight));
         g.fillRect (0, 0, UIContext::headerWidth, UIContext::rulerHeight);
-        g.setColour (juce::Colour (OmniLookAndFeel::textDim));
+        g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
         g.setFont (juce::FontOptions (11.0f));
         g.drawText ("TRACKS", juce::Rectangle<int> (0, 0, UIContext::headerWidth, UIContext::rulerHeight)
                                   .reduced (10, 0),
@@ -136,4 +136,4 @@ namespace omnidaw::ui
         updateContentSize();
         syncScroll();
     }
-} // namespace omnidaw::ui
+} // namespace freequency::ui
