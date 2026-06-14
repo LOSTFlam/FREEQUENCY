@@ -36,6 +36,19 @@ namespace freequency::ui
 
         buildDemoProject();
 
+        // Open / close insert-effect editor windows. Windows are closed before any
+        // graph rebuild because the live insert processors they wrap get recreated.
+        context.openInsertEditor = [this] (models::Track& track, int slot)
+        {
+            if (auto* proc = audioEngine.getInsertProcessor (track, slot))
+            {
+                auto* w = new PluginEditorWindow (*proc, track.name + " — " + proc->getName());
+                w->onClose = [this] (PluginEditorWindow* win) { pluginWindows.removeObject (win); };
+                pluginWindows.add (w);
+            }
+        };
+        context.closePluginWindows = [this] { pluginWindows.clear(); };
+
         audioEngine.setProject (&project);
         audioEngine.onRecordingFinished = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
         const auto error = audioEngine.initialise();
@@ -44,6 +57,7 @@ namespace freequency::ui
         transportBar = std::make_unique<TransportBar> (context);
         transportBar->onProjectStructureChanged = [this]
         {
+            pluginWindows.clear(); // their insert processors are about to be recreated
             if (arrangeView) arrangeView->rebuildTracks();
             if (mixerView)   mixerView->rebuild();
         };

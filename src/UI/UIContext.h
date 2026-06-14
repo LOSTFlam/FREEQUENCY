@@ -1,7 +1,10 @@
 #pragma once
 
 #include "Models/Project.h"
+#include "Models/Track.h"
 #include "Engine/AudioEngine.h"
+
+#include <functional>
 
 namespace freequency::ui
 {
@@ -15,8 +18,16 @@ namespace freequency::ui
     */
     struct UIContext
     {
+        UIContext (models::Project& p, engine::AudioEngine& e) : project (p), engine (e) {}
+
         models::Project& project;
         engine::AudioEngine& engine;
+
+        // Opens the editor window for a track's insert slot (set by MainComponent).
+        std::function<void (models::Track&, int)> openInsertEditor;
+        // Closes all open plugin editor windows (call before a graph rebuild, which
+        // invalidates the live insert processors those windows reference).
+        std::function<void()> closePluginWindows;
 
         double pixelsPerSecond { 90.0 };
 

@@ -1,6 +1,8 @@
 #include "UI/ChannelStrip.h"
 #include "UI/FreequencyLookAndFeel.h"
 
+#include "DSP/BuiltinEffects.h"
+
 namespace freequency::ui
 {
     ChannelStrip::ChannelStrip (UIContext& ctx, Role r, models::Track* t, models::Bus* b)
@@ -57,6 +59,25 @@ namespace freequency::ui
                 context.engine.syncParametersFromModel();
             };
 
+            // ── Insert FX slots ────────────────────────────────────────────────
+            addAndMakeVisible (fxButton);
+            fxButton.setColour (juce::TextButton::buttonColourId, juce::Colour (FreequencyLookAndFeel::panelLight));
+            fxButton.onClick = [this] { showFxMenu(); };
+
+            for (int i = 0; i < track->insertPluginIdentifiers.size(); ++i)
+            {
+                const auto id = track->insertPluginIdentifiers[i];
+                const auto label = dsp::BuiltinEffects::isBuiltin (id)
+                                       ? dsp::BuiltinEffects::displayName (id)
+                                       : id.fromLastOccurrenceOf (":", false, false);
+
+                auto* ib = insertButtons.add (new juce::TextButton (label));
+                ib->setColour (juce::TextButton::buttonColourId, track->colour.withAlpha (0.35f));
+                const int slot = i;
+                ib->onClick = [this, slot] { if (context.openInsertEditor) context.openInsertEditor (*track, slot); };
+                addAndMakeVisible (ib);
+            }
+
             // One send knob per FX bus in the project.
             auto& mixer = context.project.getMixer();
             for (int i = 0; i < mixer.getNumBuses(); ++i)
@@ -108,6 +129,71 @@ namespace freequency::ui
     ChannelStrip::~ChannelStrip()
     {
         stopTimer();
+    }
+
+    void ChannelStrip::showFxMenu()
+    {
+        if (track == nullptr)
+            return;
+
+        juce::PopupMenu menu;
+
+        juce::PopupMenu builtin;
+        const auto effects = dsp::BuiltinEffects::list();
+        for (int i = 0; i < effects.size(); ++i)
+            builtin.addItem (1000 + i, effects[i].name);
+        menu.addSubMenu ("Add built-in", builtin);
+
+        // Scanned VST3/AU plugins, if any.
+        auto plugins = context.engine.getPluginManager().getAllPlugins();
+        if (! plugins.isEmpty())
+        {
+            juce::PopupMenu pluginMenu;
+            for (int i = 0; i < plugins.size(); ++i)
+                pluginMenu.addItem (2000 + i, plugins[i].name);
+            menu.addSubMenu ("Add plugin", pluginMenu);
+        }
+
+        if (track->insertPluginIdentifiers.size() > 0)
+        {
+            menu.addSeparator();
+            juce::PopupMenu removeMenu;
+            for (int i = 0; i < track->insertPluginIdentifiers.size(); ++i)
+            {
+                const auto id = track->insertPluginIdentifiers[i];
+                const auto label = dsp::BuiltinEffects::isBuiltin (id)
+                                       ? dsp::BuiltinEffects::displayName (id)
+                                       : id.fromLastOccurrenceOf (":", false, false);
+                removeMenu.addItem (3000 + i, label);
+            }
+            menu.addSubMenu ("Remove", removeMenu);
+        }
+
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (fxButton),
+            [this, effects, plugins] (int result)
+            {
+                if (result == 0)
+                    return;
+
+                if (context.closePluginWindows)
+                    context.closePluginWindows();
+
+                if (result >= 1000 && result < 2000)
+                {
+                    track->insertPluginIdentifiers.add (effects[result - 1000].id);
+                }
+                else if (result >= 2000 && result < 3000)
+                {
+                    track->insertPluginIdentifiers.add (plugins[result - 2000].createIdentifierString());
+                }
+                else if (result >= 3000)
+                {
+                    track->insertPluginIdentifiers.remove (result - 3000);
+                }
+
+                context.engine.rebuildGraph();
+                if (onRoutingChanged) onRoutingChanged(); // rebuilds the mixer strips
+            });
     }
 
     models::Track::Send* ChannelStrip::findSend (const juce::String& busId) const
@@ -196,6 +282,12 @@ namespace freequency::ui
 
         if (role == Role::track)
         {
+            // Insert FX list at the top of the strip.
+            fxButton.setBounds (r.removeFromTop (18));
+            for (auto* ib : insertButtons)
+                ib->setBounds (r.removeFromTop (16).reduced (0, 1));
+            r.removeFromTop (4);
+
             panKnob.setBounds (r.removeFromTop (34).withSizeKeepingCentre (34, 34));
             r.removeFromTop (4);
 

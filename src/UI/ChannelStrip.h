@@ -48,11 +48,15 @@ namespace freequency::ui
         models::Track* track { nullptr };
         models::Bus* bus { nullptr };
 
+        void showFxMenu();
+
         juce::Label titleLabel;
         juce::Slider fader;
         juce::Slider panKnob;
         juce::TextButton muteButton { "M" };
         juce::TextButton soloButton { "S" };
+        juce::TextButton fxButton { "FX +" };
+        juce::OwnedArray<juce::TextButton> insertButtons; // one per insert slot
 
         juce::OwnedArray<juce::Slider> sendKnobs;   // one per FX bus (track role)
         juce::OwnedArray<juce::Label> sendLabels;
