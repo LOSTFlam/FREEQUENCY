@@ -200,6 +200,46 @@ namespace freequency::dsp
         juce::dsp::Phaser<float> phaser;
     };
 
+    /**
+        SidechainCompressor — a compressor whose gain reduction is driven by a
+        separate "key" signal on its sidechain input bus (classic ducking). The
+        engine connects a chosen source track to the sidechain input; if nothing
+        is connected, it falls back to keying off its own main input.
+
+        Standalone (not BuiltinEffectBase) because it needs an extra input bus.
+    */
+    class SidechainCompressor final : public juce::AudioProcessor
+    {
+    public:
+        SidechainCompressor();
+
+        const juce::String getName() const override { return "Sidechain Comp"; }
+        void prepareToPlay (double sampleRate, int) override { sr = sampleRate; env = 0.0f; }
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+        using juce::AudioProcessor::processBlock;
+        bool isBusesLayoutSupported (const BusesLayout&) const override;
+
+        bool acceptsMidi() const override { return false; }
+        bool producesMidi() const override { return false; }
+        bool isMidiEffect() const override { return false; }
+        double getTailLengthSeconds() const override { return 0.0; }
+        juce::AudioProcessorEditor* createEditor() override { return new juce::GenericAudioProcessorEditor (*this); }
+        bool hasEditor() const override { return true; }
+        int getNumPrograms() override { return 1; }
+        int getCurrentProgram() override { return 0; }
+        void setCurrentProgram (int) override {}
+        const juce::String getProgramName (int) override { return {}; }
+        void changeProgramName (int, const juce::String&) override {}
+        void getStateInformation (juce::MemoryBlock&) override;
+        void setStateInformation (const void*, int) override;
+
+    private:
+        juce::AudioProcessorValueTreeState apvts;
+        double sr { 44100.0 };
+        float env { 0.0f };
+    };
+
     /** Factory + catalogue of the built-in effects. */
     struct BuiltinEffectInfo
     {

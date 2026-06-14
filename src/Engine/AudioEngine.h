@@ -125,6 +125,9 @@ namespace freequency::engine
             Used by the UI to pop up a plugin/effect editor for that insert. */
         [[nodiscard]] juce::AudioProcessor* getInsertProcessor (const models::Track& track, int slot) const noexcept;
 
+        /** Live AudioProcessor for a bus insert slot, or nullptr. */
+        [[nodiscard]] juce::AudioProcessor* getBusInsertProcessor (const models::Bus& bus, int slot) const noexcept;
+
         /** Offline (non-realtime) render of the current project for `seconds`,
             starting from timeline position 0 with the transport playing. Returns
             the peak magnitude of the rendered output. Used by the headless
@@ -168,12 +171,14 @@ namespace freequency::engine
             NodeID instrument;  // instrument node (MIDI tracks only), else invalid
             std::vector<NodeID> inserts; // insert FX nodes, in series
             std::vector<NodeID> sends;   // send-tap gain nodes, aligned with model sends
+            std::vector<NodeID> sidechainNodes; // sidechain-compressor inserts needing a key
         };
 
         void buildBaseGraph();
         void buildBuses();
         void addTrackChain (models::Track& track);
         NodeID makeInstrumentNode (models::Track& track); // hosted plugin or built-in synth
+        std::unique_ptr<juce::AudioProcessor> createInsertProcessor (const juce::String& identifier);
         void connectStereo (NodeID source, NodeID destination);
         void connectMidi (NodeID source, NodeID destination);
 
@@ -198,6 +203,7 @@ namespace freequency::engine
 
         std::unordered_map<std::string, TrackChain> trackChains;
         std::unordered_map<std::string, NodeID> busNodes; // bus id -> strip node
+        std::unordered_map<std::string, std::vector<NodeID>> busInsertNodes; // bus id -> insert nodes
 
         juce::AudioBuffer<float> renderBuffer; // scratch for the device callback
         juce::MidiBuffer scratchMidi;

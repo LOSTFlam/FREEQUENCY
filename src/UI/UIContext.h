@@ -23,8 +23,8 @@ namespace freequency::ui
         models::Project& project;
         engine::AudioEngine& engine;
 
-        // Opens the editor window for a track's insert slot (set by MainComponent).
-        std::function<void (models::Track&, int)> openInsertEditor;
+        // Opens a floating editor window for any processor (set by MainComponent).
+        std::function<void (juce::AudioProcessor*, juce::String)> openProcessorEditor;
         // Closes all open plugin editor windows (call before a graph rebuild, which
         // invalidates the live insert processors those windows reference).
         std::function<void()> closePluginWindows;

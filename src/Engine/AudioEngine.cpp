@@ -147,6 +147,7 @@ namespace freequency::engine
         graph.clear();
         trackChains.clear();
         busNodes.clear();
+        busInsertNodes.clear();
 
         // CRITICAL: establish the graph's IO channel count *before* adding and
         // connecting the IO node. An AudioGraphIOProcessor derives its channel
@@ -174,13 +175,29 @@ namespace freequency::engine
         connectStereo (metronomeNode->nodeID, limiterNode->nodeID);
     }
 
+    std::unique_ptr<juce::AudioProcessor> AudioEngine::createInsertProcessor (const juce::String& identifier)
+    {
+        if (dsp::BuiltinEffects::isBuiltin (identifier))
+            return dsp::BuiltinEffects::create (identifier);
+
+        juce::String error;
+        auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
+        if (fx == nullptr)
+        {
+            DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
+        }
+        return fx;
+    }
+
     void AudioEngine::buildBuses()
     {
         if (currentProject == nullptr)
             return;
 
-        // Each submix/FX bus becomes a TrackProcessor strip feeding the master.
-        // (The master itself is created in buildBaseGraph.)
+        busInsertNodes.clear();
+
+        // Each submix/FX bus becomes a TrackProcessor strip; tracks connect to the
+        // strip, then the strip runs through the bus insert FX chain to master.
         auto& mixer = currentProject->getMixer();
 
         for (int i = 0; i < mixer.getNumBuses(); ++i)
@@ -189,9 +206,23 @@ namespace freequency::engine
             if (bus == nullptr || bus->getKind() == models::Bus::Kind::master)
                 continue;
 
+            const auto busId = bus->getId().toDashedString().toStdString();
             auto busNode = graph.addNode (std::make_unique<TrackProcessor> (bus->name));
-            connectStereo (busNode->nodeID, masterNode->nodeID);
-            busNodes[bus->getId().toDashedString().toStdString()] = busNode->nodeID;
+            busNodes[busId] = busNode->nodeID;
+
+            NodeID last = busNode->nodeID;
+            for (const auto& identifier : bus->insertPluginIdentifiers)
+            {
+                auto fx = createInsertProcessor (identifier);
+                if (fx == nullptr)
+                    continue;
+                auto fxNode = graph.addNode (std::move (fx));
+                connectStereo (last, fxNode->nodeID);
+                last = fxNode->nodeID;
+                busInsertNodes[busId].push_back (fxNode->nodeID);
+            }
+
+            connectStereo (last, masterNode->nodeID);
         }
     }
 
@@ -280,26 +311,13 @@ namespace freequency::engine
             // source/instrument and the channel strip.
             for (const auto& identifier : track.insertPluginIdentifiers)
             {
-                std::unique_ptr<juce::AudioProcessor> fx;
-
-                if (dsp::BuiltinEffects::isBuiltin (identifier))
-                {
-                    fx = dsp::BuiltinEffects::create (identifier);
-                }
-                else
-                {
-                    juce::String error;
-                    fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
-                    if (fx == nullptr)
-                    {
-                        DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
-                    }
-                }
-
+                auto fx = createInsertProcessor (identifier);
                 if (fx == nullptr)
                     continue;
 
                 auto fxNode = graph.addNode (std::move (fx));
+                if (dynamic_cast<dsp::SidechainCompressor*> (fxNode->getProcessor()) != nullptr)
+                    chain.sidechainNodes.push_back (fxNode->nodeID);
                 connectStereo (lastAudioNode, fxNode->nodeID);
                 lastAudioNode = fxNode->nodeID;
                 chain.inserts.push_back (fxNode->nodeID);
@@ -358,6 +376,27 @@ namespace freequency::engine
             for (int i = 0; i < timeline.getNumTracks(); ++i)
                 if (auto* track = timeline.getTrack (i))
                     addTrackChain (*track);
+
+            // Sidechain wiring (second pass: all strips now exist). Connect each
+            // keyed track's source strip to its sidechain-comp inserts' SC bus.
+            for (int i = 0; i < timeline.getNumTracks(); ++i)
+            {
+                auto* track = timeline.getTrack (i);
+                if (track == nullptr || track->sidechainSourceId.isEmpty())
+                    continue;
+
+                const auto dstIt = trackChains.find (track->getId().toDashedString().toStdString());
+                const auto srcIt = trackChains.find (track->sidechainSourceId.toStdString());
+                if (dstIt == trackChains.end() || srcIt == trackChains.end())
+                    continue;
+
+                const auto srcStrip = srcIt->second.strip;
+                for (const auto scNode : dstIt->second.sidechainNodes)
+                {
+                    graph.addConnection ({ { srcStrip, 0 }, { scNode, 2 } });
+                    graph.addConnection ({ { srcStrip, 1 }, { scNode, 3 } });
+                }
+            }
         }
 
         syncParametersFromModel();
@@ -700,6 +739,18 @@ namespace freequency::engine
             return nullptr;
 
         if (auto* node = graph.getNodeForId (inserts[(size_t) slot]))
+            return node->getProcessor();
+
+        return nullptr;
+    }
+
+    juce::AudioProcessor* AudioEngine::getBusInsertProcessor (const models::Bus& bus, int slot) const noexcept
+    {
+        const auto it = busInsertNodes.find (bus.getId().toDashedString().toStdString());
+        if (it == busInsertNodes.end() || slot < 0 || slot >= (int) it->second.size())
+            return nullptr;
+
+        if (auto* node = graph.getNodeForId (it->second[(size_t) slot]))
             return node->getProcessor();
 
         return nullptr;

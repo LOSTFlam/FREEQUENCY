@@ -21,7 +21,7 @@ namespace freequency::models
         OMNI_ID (instrument) OMNI_ID (autoEnabled)
         OMNI_ID (start) OMNI_ID (length) OMNI_ID (file) OMNI_ID (offset) OMNI_ID (gain)
         OMNI_ID (time) OMNI_ID (value) OMNI_ID (data) OMNI_ID (bus) OMNI_ID (level)
-        OMNI_ID (refs)
+        OMNI_ID (refs) OMNI_ID (scsrc)
         #undef OMNI_ID
     }
 
@@ -91,6 +91,7 @@ namespace freequency::models
             trackTree.setProperty (name, track->name, nullptr);
             trackTree.setProperty (colour, track->colour.toString(), nullptr);
             trackTree.setProperty (bus, track->outputBusId, nullptr); // output routing
+            trackTree.setProperty (scsrc, track->sidechainSourceId, nullptr);
             trackTree.setProperty (volume, track->getVolume(), nullptr);
             trackTree.setProperty (pan, track->getPan(), nullptr);
             trackTree.setProperty (mute, track->isMuted(), nullptr);
@@ -239,6 +240,7 @@ namespace freequency::models
                 if (remapped != busIdRemap.end())
                     track->outputBusId = remapped->second;
             }
+            track->sidechainSourceId = trackTree.getProperty (scsrc, "").toString(); // remapped below
             track->setVolume ((float) (double) trackTree.getProperty (volume, 1.0));
             track->setPan ((float) (double) trackTree.getProperty (pan, 0.0));
             track->setMuted ((bool) trackTree.getProperty (mute, false));
@@ -313,7 +315,16 @@ namespace freequency::models
             }
         }
 
-        // Second pass: remap VCA controlled-track references to the new track ids.
+        // Second pass: remap track-id references (sidechain sources + VCA refs).
+        for (int i = 0; i < timeline.getNumTracks(); ++i)
+        {
+            auto* track = timeline.getTrack (i);
+            if (track == nullptr || track->sidechainSourceId.isEmpty())
+                continue;
+            const auto it = trackIdRemap.find (track->sidechainSourceId.toStdString());
+            track->sidechainSourceId = it != trackIdRemap.end() ? it->second : juce::String();
+        }
+
         for (int i = 0; i < timelineTree.getNumChildren(); ++i)
         {
             auto trackTree = timelineTree.getChild (i);

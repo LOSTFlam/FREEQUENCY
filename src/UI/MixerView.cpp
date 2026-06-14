@@ -48,6 +48,7 @@ namespace freequency::ui
                 continue;
 
             auto* strip = strips.add (new ChannelStrip (context, ChannelStrip::Role::bus, nullptr, bus));
+            strip->onRoutingChanged = [this] { rebuild(); };
             stripContainer.addAndMakeVisible (strip);
         }
 

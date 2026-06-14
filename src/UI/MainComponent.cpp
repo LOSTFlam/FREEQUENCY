@@ -51,14 +51,12 @@ namespace freequency::ui
 
         // Open / close insert-effect editor windows. Windows are closed before any
         // graph rebuild because the live insert processors they wrap get recreated.
-        context.openInsertEditor = [this] (models::Track& track, int slot)
+        context.openProcessorEditor = [this] (juce::AudioProcessor* proc, juce::String title)
         {
-            if (auto* proc = audioEngine.getInsertProcessor (track, slot))
-            {
-                auto* w = new PluginEditorWindow (*proc, track.name + " — " + proc->getName());
-                w->onClose = [this] (PluginEditorWindow* win) { pluginWindows.removeObject (win); };
-                pluginWindows.add (w);
-            }
+            if (proc == nullptr) return;
+            auto* w = new PluginEditorWindow (*proc, title + " — " + proc->getName());
+            w->onClose = [this] (PluginEditorWindow* win) { pluginWindows.removeObject (win); };
+            pluginWindows.add (w);
         };
         context.closePluginWindows = [this] { pluginWindows.clear(); };
         context.pushUndo = [this] { pushUndo(); };

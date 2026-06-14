@@ -32,6 +32,9 @@ namespace freequency::models
         juce::String name;
         juce::Colour colour { juce::Colours::darkgrey };
 
+        /** Insert FX chain on this bus (built-in 'builtin:*' or plugin ids). */
+        juce::StringArray insertPluginIdentifiers;
+
         [[nodiscard]] float getVolume() const noexcept { return volume.load (std::memory_order_relaxed); }
         void setVolume (float linearGain) noexcept { volume.store (juce::jmax (0.0f, linearGain), std::memory_order_relaxed); }
 
