@@ -1,4 +1,4 @@
-# FREEQUENCY (FREEQUENCY)
+# FREEQUENCY
 
 A next-generation, **hybrid DAW** — combining FL Studio's pattern workflow with
 Cubase's linear audio/MIDI editing — built with **modern C++20** and the
@@ -12,20 +12,27 @@ ships a full arrange view, mixing console, automation and disk recording.
 - **Multitrack engine** built on `juce::AudioProcessorGraph` with a strict
   **Model / View / Engine** separation (the models and audio engine have **no**
   `juce::Component` dependency).
-- **Transport**: sample-accurate play/stop/loop, tempo, bars·beats·ticks display.
+- **Transport**: sample-accurate play/stop/loop, tempo, bars·beats·ticks display,
+  **tap tempo**.
+- **Metronome** (Cubase-style click with accented downbeat).
 - **Built-in instrument**: a 16-voice polyBLEP synth so MIDI tracks are audible
   with zero plugins installed.
 - **VST3 / AU hosting**: scan, load instruments and insert-effect chains.
 - **Arrange view**: track headers (mute/solo/volume/pan), audio **waveforms**
   (`juce::AudioThumbnail`), a **mini piano-roll** for MIDI, bar/beat ruler with
   click-to-seek, and a transport-synced **playhead**. Double-click to add a MIDI
-  pattern or import audio.
+  pattern or import audio. **Grid snapping** (Off / Bar / 1·2 / 1·4 / 1·8 / 1·16).
 - **Mixing console**: per-track / bus / master **channel strips** with faders,
   pan, mute/solo, **meters**, **aux sends** and **FX bus** routing.
+- **Master limiter**: transparent brick-wall safety limiter on the output.
 - **Automation**: editable per-track volume curves that drive the fader
   sample-accurately at playback.
 - **Recording**: punch-in disk recording of the audio input to 24-bit WAV.
-- **Project save/load**: `.freq` XML (ValueTree) documents.
+- **Keyboard shortcuts**: Space = play/stop, Enter/Home = return to start,
+  L = loop, M = metronome, B = mixer.
+- **Status bar**: project name, position, sample rate/buffer, audio CPU load.
+- **Project save/load**: custom **`.freq`** XML (ValueTree) documents, associated
+  with the app so they open on double-click.
 
 ## Architecture
 
@@ -79,19 +86,41 @@ sudo apt-get install -y libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
   libglu1-mesa-dev mesa-common-dev libstdc++-13-dev
 ```
 
-Then configure and build (use GCC — the default `c++`/clang on some images can't
-find libstdc++):
+Then build with the helper script (or CMake directly):
 
 ```bash
+./scripts/build.sh            # Linux / macOS  (scripts\build.bat on Windows)
+# or:
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc
 cmake --build build --target FREEQUENCY -j
 ```
 
-The standalone app is produced at
-`build/src/FREEQUENCY_artefacts/Release/FREEQUENCY`.
+The standalone app is produced at:
+
+| Platform | Path |
+|----------|------|
+| Linux    | `build/src/FREEQUENCY_artefacts/Release/FREEQUENCY` |
+| Windows  | `build/src/FREEQUENCY_artefacts/Release/FREEQUENCY.exe` |
+| macOS    | `build/src/FREEQUENCY_artefacts/Release/FREEQUENCY.app` |
 
 > Tip: add `-DFREEQUENCY_ENABLE_LTO=OFF` for much faster incremental link times
 > during development.
+
+### Prebuilt binaries (CI)
+
+Every push builds **FREEQUENCY.exe**, **FREEQUENCY.app** and the Linux binary via
+GitHub Actions (`.github/workflows/build.yml`); download them from the run's
+*Artifacts* section.
+
+### Install & `.freq` association (Linux)
+
+```bash
+./scripts/build.sh
+./packaging/install-linux.sh   # installs launcher, icon and .freq file association
+```
+
+Double-clicking a `.freq` project then opens it in FREEQUENCY. On macOS/Windows
+the association is declared in the app bundle / via the build.
 
 ### Headless self-test
 
