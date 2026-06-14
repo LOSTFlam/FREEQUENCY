@@ -80,6 +80,7 @@ namespace freequency::ui
                     const int idx = outBox.getSelectedId() - 1;
                     if (idx >= 0 && idx < outBusIds.size())
                     {
+                        if (context.pushUndo) context.pushUndo();
                         track->outputBusId = outBusIds[idx];
                         if (context.closePluginWindows) context.closePluginWindows();
                         context.engine.rebuildGraph();
@@ -204,6 +205,7 @@ namespace freequency::ui
                 if (result == 0)
                     return;
 
+                if (context.pushUndo) context.pushUndo();
                 if (context.closePluginWindows)
                     context.closePluginWindows();
 

@@ -64,6 +64,12 @@ namespace freequency::ui
 
         int draggingPoint { -1 };
 
+        // Clip drag-to-move state.
+        models::Clip* dragClip { nullptr };
+        double dragOrigStart { 0.0 };
+        int    dragStartX { 0 };
+        bool   didDrag { false };
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackLaneComponent)
     };
 } // namespace freequency::ui

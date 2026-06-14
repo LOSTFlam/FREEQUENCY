@@ -2,6 +2,8 @@
 
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
+#include "Models/BusTrack.h"
+#include "Models/VCATrack.h"
 
 #include <unordered_map>
 
@@ -19,6 +21,7 @@ namespace freequency::models
         OMNI_ID (instrument) OMNI_ID (autoEnabled)
         OMNI_ID (start) OMNI_ID (length) OMNI_ID (file) OMNI_ID (offset) OMNI_ID (gain)
         OMNI_ID (time) OMNI_ID (value) OMNI_ID (data) OMNI_ID (bus) OMNI_ID (level)
+        OMNI_ID (refs)
         #undef OMNI_ID
     }
 
@@ -78,10 +81,16 @@ namespace freequency::models
             if (track == nullptr)
                 continue;
 
+            const char* typeStr = track->getType() == TrackType::audio ? "audio"
+                                : track->getType() == TrackType::midi  ? "midi"
+                                : track->getType() == TrackType::bus   ? "bus" : "vca";
+
             juce::ValueTree trackTree (TRACK);
-            trackTree.setProperty (type, track->getType() == TrackType::audio ? "audio" : "midi", nullptr);
+            trackTree.setProperty (type, typeStr, nullptr);
+            trackTree.setProperty (id, track->getId().toDashedString(), nullptr);
             trackTree.setProperty (name, track->name, nullptr);
             trackTree.setProperty (colour, track->colour.toString(), nullptr);
+            trackTree.setProperty (bus, track->outputBusId, nullptr); // output routing
             trackTree.setProperty (volume, track->getVolume(), nullptr);
             trackTree.setProperty (pan, track->getPan(), nullptr);
             trackTree.setProperty (mute, track->isMuted(), nullptr);
@@ -90,6 +99,9 @@ namespace freequency::models
 
             if (auto* midiTrack = dynamic_cast<MidiTrack*> (track))
                 trackTree.setProperty (instrument, midiTrack->instrumentPluginIdentifier, nullptr);
+
+            if (auto* vcaTrack = dynamic_cast<VCATrack*> (track))
+                trackTree.setProperty (refs, vcaTrack->getControlledTrackIds().joinIntoString (";"), nullptr);
 
             for (const auto& ins : track->insertPluginIdentifiers)
             {
@@ -136,6 +148,7 @@ namespace freequency::models
                     clipTree.setProperty (file, audioClip->sourceFile.getFullPathName(), nullptr);
                     clipTree.setProperty (offset, audioClip->sourceOffset, nullptr);
                     clipTree.setProperty (gain, audioClip->gain, nullptr);
+                    clipTree.setProperty (value, audioClip->reversed, nullptr); // reuse 'value' as reversed flag
                 }
                 else if (auto* midiClip = dynamic_cast<MidiClip*> (clip))
                 {
@@ -200,21 +213,32 @@ namespace freequency::models
             }
         }
 
-        // Tracks.
+        // Tracks. Track ids are remapped (old -> new) so VCA references survive.
         timeline.clear();
+        std::unordered_map<std::string, juce::String> trackIdRemap;
         auto timelineTree = root.getChildWithName (TIMELINE);
         for (int i = 0; i < timelineTree.getNumChildren(); ++i)
         {
             auto trackTree = timelineTree.getChild (i);
-            const bool isAudio = trackTree.getProperty (type, "audio").toString() == "audio";
+            const auto typeStr = trackTree.getProperty (type, "audio").toString();
 
-            Track* track = isAudio ? (Track*) timeline.addAudioTrack()
-                                   : (Track*) timeline.addMidiTrack();
+            Track* track = typeStr == "midi" ? (Track*) timeline.addMidiTrack()
+                         : typeStr == "bus"  ? (Track*) timeline.addBusTrack()
+                         : typeStr == "vca"  ? (Track*) timeline.addVCATrack()
+                                             : (Track*) timeline.addAudioTrack();
             if (track == nullptr)
                 continue;
 
+            trackIdRemap[trackTree.getProperty (id).toString().toStdString()] = track->getId().toDashedString();
+
             track->name = trackTree.getProperty (name, "Track").toString();
             track->colour = juce::Colour::fromString (trackTree.getProperty (colour, "ff808080").toString());
+            track->outputBusId = trackTree.getProperty (bus, "").toString();
+            {
+                const auto remapped = busIdRemap.find (track->outputBusId.toStdString());
+                if (remapped != busIdRemap.end())
+                    track->outputBusId = remapped->second;
+            }
             track->setVolume ((float) (double) trackTree.getProperty (volume, 1.0));
             track->setPan ((float) (double) trackTree.getProperty (pan, 0.0));
             track->setMuted ((bool) trackTree.getProperty (mute, false));
@@ -262,6 +286,7 @@ namespace freequency::models
                             clip->sourceFile = juce::File (child.getProperty (file, "").toString());
                             clip->sourceOffset = child.getProperty (offset, 0.0);
                             clip->gain = (float) (double) child.getProperty (gain, 1.0);
+                            clip->reversed = (bool) child.getProperty (value, false);
                         }
                     }
                     else
@@ -285,6 +310,26 @@ namespace freequency::models
                         }
                     }
                 }
+            }
+        }
+
+        // Second pass: remap VCA controlled-track references to the new track ids.
+        for (int i = 0; i < timelineTree.getNumChildren(); ++i)
+        {
+            auto trackTree = timelineTree.getChild (i);
+            if (trackTree.getProperty (type, "").toString() != "vca")
+                continue;
+
+            auto* vca = dynamic_cast<VCATrack*> (timeline.getTrack (i));
+            if (vca == nullptr)
+                continue;
+
+            const auto oldRefs = juce::StringArray::fromTokens (trackTree.getProperty (refs, "").toString(), ";", "");
+            for (const auto& oldId : oldRefs)
+            {
+                const auto it = trackIdRemap.find (oldId.toStdString());
+                if (it != trackIdRemap.end())
+                    vca->addControlledTrack (it->second);
             }
         }
     }

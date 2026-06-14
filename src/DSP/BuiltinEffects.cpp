@@ -362,6 +362,146 @@ namespace freequency::dsp
         }
     }
 
+    // ── Filter ───────────────────────────────────────────────────────────────────
+    FilterProcessor::FilterProcessor()
+        : BuiltinEffectBase ("Filter", [] {
+              APVTS::ParameterLayout l;
+              l.add (std::make_unique<ChoiceParam> (juce::ParameterID { "type", 1 }, "Type",
+                                                    juce::StringArray { "Low-pass", "High-pass", "Band-pass" }, 0));
+              l.add (fparam ("cutoff", "Cutoff", freqRange(), 1200.0f));
+              l.add (fparam ("res", "Resonance", { 0.1f, 10.0f, 0.001f }, 0.707f));
+              return l;
+          }())
+    {
+    }
+
+    void FilterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+    {
+        juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) juce::jmax (1, samplesPerBlock),
+                                      (juce::uint32) juce::jmax (1, getTotalNumOutputChannels()) };
+        filter.prepare (spec);
+    }
+
+    void FilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const int type = (int) apvts.getRawParameterValue ("type")->load();
+        filter.setType (type == 1 ? juce::dsp::StateVariableTPTFilterType::highpass
+                       : type == 2 ? juce::dsp::StateVariableTPTFilterType::bandpass
+                                   : juce::dsp::StateVariableTPTFilterType::lowpass);
+        filter.setCutoffFrequency (apvts.getRawParameterValue ("cutoff")->load());
+        filter.setResonance (apvts.getRawParameterValue ("res")->load());
+
+        juce::dsp::AudioBlock<float> block (buffer);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        filter.process (ctx);
+    }
+
+    // ── Gate ─────────────────────────────────────────────────────────────────────
+    GateProcessor::GateProcessor()
+        : BuiltinEffectBase ("Gate", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("threshold", "Threshold", { -80.0f, 0.0f, 0.01f }, -40.0f));
+              l.add (fparam ("attack", "Attack", { 0.1f, 100.0f, 0.01f }, 2.0f));
+              l.add (fparam ("release", "Release", { 5.0f, 1000.0f, 0.01f }, 120.0f));
+              l.add (fparam ("range", "Range", { -90.0f, 0.0f, 0.01f }, -60.0f));
+              return l;
+          }())
+    {
+    }
+
+    void GateProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const float thresh = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("threshold")->load());
+        const float floorGain = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("range")->load());
+        const float atkMs = apvts.getRawParameterValue ("attack")->load();
+        const float relMs = apvts.getRawParameterValue ("release")->load();
+        const float atk = std::exp (-1.0f / (float) (atkMs * 0.001 * sr));
+        const float rel = std::exp (-1.0f / (float) (relMs * 0.001 * sr));
+
+        const int n = buffer.getNumSamples();
+        const int ch = buffer.getNumChannels();
+        for (int i = 0; i < n; ++i)
+        {
+            float peak = 0.0f;
+            for (int c = 0; c < ch; ++c) peak = juce::jmax (peak, std::abs (buffer.getSample (c, i)));
+            const float target = peak > thresh ? 1.0f : floorGain;
+            env = target + (env - target) * (target > env ? atk : rel);
+            for (int c = 0; c < ch; ++c) buffer.setSample (c, i, buffer.getSample (c, i) * env);
+        }
+    }
+
+    // ── Chorus ───────────────────────────────────────────────────────────────────
+    ChorusProcessor::ChorusProcessor()
+        : BuiltinEffectBase ("Chorus", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("rate", "Rate", { 0.01f, 10.0f, 0.001f }, 1.0f));
+              l.add (fparam ("depth", "Depth", { 0.0f, 1.0f, 0.001f }, 0.25f));
+              l.add (fparam ("delay", "Centre Delay", { 1.0f, 50.0f, 0.01f }, 7.0f));
+              l.add (fparam ("feedback", "Feedback", { -0.95f, 0.95f, 0.001f }, 0.0f));
+              l.add (fparam ("mix", "Mix", { 0.0f, 1.0f, 0.001f }, 0.5f));
+              return l;
+          }())
+    {
+    }
+
+    void ChorusProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+    {
+        juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) juce::jmax (1, samplesPerBlock),
+                                      (juce::uint32) juce::jmax (1, getTotalNumOutputChannels()) };
+        chorus.prepare (spec);
+    }
+
+    void ChorusProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        chorus.setRate (apvts.getRawParameterValue ("rate")->load());
+        chorus.setDepth (apvts.getRawParameterValue ("depth")->load());
+        chorus.setCentreDelay (apvts.getRawParameterValue ("delay")->load());
+        chorus.setFeedback (apvts.getRawParameterValue ("feedback")->load());
+        chorus.setMix (apvts.getRawParameterValue ("mix")->load());
+
+        juce::dsp::AudioBlock<float> block (buffer);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        chorus.process (ctx);
+    }
+
+    // ── Phaser ───────────────────────────────────────────────────────────────────
+    PhaserProcessor::PhaserProcessor()
+        : BuiltinEffectBase ("Phaser", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("rate", "Rate", { 0.01f, 10.0f, 0.001f }, 1.0f));
+              l.add (fparam ("depth", "Depth", { 0.0f, 1.0f, 0.001f }, 0.5f));
+              l.add (fparam ("centre", "Centre Freq", freqRange(), 1300.0f));
+              l.add (fparam ("feedback", "Feedback", { -0.95f, 0.95f, 0.001f }, 0.0f));
+              l.add (fparam ("mix", "Mix", { 0.0f, 1.0f, 0.001f }, 0.5f));
+              return l;
+          }())
+    {
+    }
+
+    void PhaserProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+    {
+        juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) juce::jmax (1, samplesPerBlock),
+                                      (juce::uint32) juce::jmax (1, getTotalNumOutputChannels()) };
+        phaser.prepare (spec);
+    }
+
+    void PhaserProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        phaser.setRate (apvts.getRawParameterValue ("rate")->load());
+        phaser.setDepth (apvts.getRawParameterValue ("depth")->load());
+        phaser.setCentreFrequency (apvts.getRawParameterValue ("centre")->load());
+        phaser.setFeedback (apvts.getRawParameterValue ("feedback")->load());
+        phaser.setMix (apvts.getRawParameterValue ("mix")->load());
+
+        juce::dsp::AudioBlock<float> block (buffer);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        phaser.process (ctx);
+    }
+
     // ── Factory ──────────────────────────────────────────────────────────────────
     juce::Array<BuiltinEffectInfo> BuiltinEffects::list()
     {
@@ -373,6 +513,10 @@ namespace freequency::dsp
         items.add ({ "builtin:clipper",    "Clipper" });
         items.add ({ "builtin:reverb",     "Reverb" });
         items.add ({ "builtin:delay",      "Delay" });
+        items.add ({ "builtin:filter",     "Filter" });
+        items.add ({ "builtin:gate",       "Gate" });
+        items.add ({ "builtin:chorus",     "Chorus" });
+        items.add ({ "builtin:phaser",     "Phaser" });
         return items;
     }
 
@@ -398,6 +542,10 @@ namespace freequency::dsp
         if (identifier == "builtin:clipper")    return std::make_unique<ClipperProcessor>();
         if (identifier == "builtin:reverb")     return std::make_unique<ReverbProcessor>();
         if (identifier == "builtin:delay")      return std::make_unique<DelayProcessor>();
+        if (identifier == "builtin:filter")     return std::make_unique<FilterProcessor>();
+        if (identifier == "builtin:gate")       return std::make_unique<GateProcessor>();
+        if (identifier == "builtin:chorus")     return std::make_unique<ChorusProcessor>();
+        if (identifier == "builtin:phaser")     return std::make_unique<PhaserProcessor>();
         return {};
     }
 } // namespace freequency::dsp
