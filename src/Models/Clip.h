@@ -101,6 +101,13 @@ namespace freequency::models
 
         /** Pitch shift in semitones (length preserved). */
         int pitchSemitones { 0 };
+
+        /** Comping: alternative recorded takes for this clip. The active take is
+            mirrored into `sourceFile` (so playback/thumbnail follow it). */
+        juce::StringArray takeFiles;
+        int activeTake { 0 };
+
+        [[nodiscard]] int getNumTakes() const noexcept { return takeFiles.size(); }
     };
 
     /**

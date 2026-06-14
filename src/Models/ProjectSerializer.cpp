@@ -22,6 +22,7 @@ namespace freequency::models
         OMNI_ID (start) OMNI_ID (length) OMNI_ID (file) OMNI_ID (offset) OMNI_ID (gain)
         OMNI_ID (time) OMNI_ID (value) OMNI_ID (data) OMNI_ID (bus) OMNI_ID (level)
         OMNI_ID (refs) OMNI_ID (scsrc) OMNI_ID (stretch) OMNI_ID (pitch)
+        OMNI_ID (takes) OMNI_ID (activeTake)
         #undef OMNI_ID
     }
 
@@ -152,6 +153,8 @@ namespace freequency::models
                     clipTree.setProperty (value, audioClip->reversed, nullptr); // reuse 'value' as reversed flag
                     clipTree.setProperty (stretch, audioClip->stretchRatio, nullptr);
                     clipTree.setProperty (pitch, audioClip->pitchSemitones, nullptr);
+                    clipTree.setProperty (takes, audioClip->takeFiles.joinIntoString ("\n"), nullptr);
+                    clipTree.setProperty (activeTake, audioClip->activeTake, nullptr);
                 }
                 else if (auto* midiClip = dynamic_cast<MidiClip*> (clip))
                 {
@@ -293,6 +296,9 @@ namespace freequency::models
                             clip->reversed = (bool) child.getProperty (value, false);
                             clip->stretchRatio = child.getProperty (stretch, 1.0);
                             clip->pitchSemitones = (int) child.getProperty (pitch, 0);
+                            clip->takeFiles.addLines (child.getProperty (takes, "").toString());
+                            clip->takeFiles.removeEmptyStrings();
+                            clip->activeTake = (int) child.getProperty (activeTake, 0);
                         }
                     }
                     else

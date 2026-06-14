@@ -16,7 +16,8 @@ namespace freequency::ui
             openKeyMappings, duplicateClip, splitClip, deleteClip, reverseClip, nudgeLeft, nudgeRight,
             playheadLeft, playheadRight, tempoUp, tempoDown, toggleKeyboardPiano,
             octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser, openAppearance,
-            clipPitchUp, clipPitchDown, clipStretchUp, clipStretchDown
+            clipPitchUp, clipPitchDown, clipStretchUp, clipStretchDown,
+            addTake, nextTake, prevTake
         };
     }
 
@@ -198,7 +199,8 @@ namespace freequency::ui
             CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings,
             CommandIDs::toggleBrowser, CommandIDs::openAppearance,
             CommandIDs::clipPitchUp, CommandIDs::clipPitchDown,
-            CommandIDs::clipStretchUp, CommandIDs::clipStretchDown });
+            CommandIDs::clipStretchUp, CommandIDs::clipStretchDown,
+            CommandIDs::addTake, CommandIDs::nextTake, CommandIDs::prevTake });
     }
 
     void MainComponent::getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& r)
@@ -240,6 +242,9 @@ namespace freequency::ui
             case CommandIDs::clipPitchDown:   r.setInfo ("Audio Clip Pitch -1", "", ed, 0); r.addDefaultKeypress (KeyPress::downKey, ModifierKeys::commandModifier); break;
             case CommandIDs::clipStretchUp:   r.setInfo ("Audio Clip Stretch +", "Lengthen (warp)", ed, 0); r.addDefaultKeypress (KeyPress::rightKey, ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
             case CommandIDs::clipStretchDown: r.setInfo ("Audio Clip Stretch -", "Shorten (warp)", ed, 0); r.addDefaultKeypress (KeyPress::leftKey, ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
+            case CommandIDs::addTake:         r.setInfo ("Add Take from File…", "Comping: add an alternate take", ed, 0); break;
+            case CommandIDs::nextTake:        r.setInfo ("Next Take", "Comping: switch take", ed, 0); r.addDefaultKeypress (']', 0); break;
+            case CommandIDs::prevTake:        r.setInfo ("Previous Take", "Comping: switch take", ed, 0); r.addDefaultKeypress ('[', 0); break;
 
             case CommandIDs::toggleKeyboardPiano: r.setInfo ("Computer-Keyboard Piano", "Play instruments via QWERTY", in, 0); r.addDefaultKeypress (KeyPress::tabKey, 0); break;
             case CommandIDs::octaveUp:        r.setInfo ("Piano Octave +", "", in, 0); r.addDefaultKeypress ('x', 0); break;
@@ -294,6 +299,9 @@ namespace freequency::ui
             case CommandIDs::clipPitchDown:   pitchSelectedClip (-1); break;
             case CommandIDs::clipStretchUp:   stretchSelectedClip (1.25); break;
             case CommandIDs::clipStretchDown: stretchSelectedClip (0.8); break;
+            case CommandIDs::addTake:         addTakeToSelectedClip(); break;
+            case CommandIDs::nextTake:        cycleTake (1); break;
+            case CommandIDs::prevTake:        cycleTake (-1); break;
             default: return false;
         }
         return true;
@@ -616,6 +624,38 @@ namespace freequency::ui
         pushUndo();
         clip->stretchRatio = juce::jlimit (0.25, 4.0, clip->stretchRatio * factor);
         if (clip->length > 0.0) clip->length *= factor; // clip resizes on the timeline
+        afterClipChange();
+    }
+
+    void MainComponent::addTakeToSelectedClip()
+    {
+        auto* clip = dynamic_cast<models::AudioClip*> (context.selectedClip);
+        if (clip == nullptr) return;
+
+        fileChooser = std::make_unique<juce::FileChooser> ("Add take", juce::File(),
+                                                           "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this, clip] (const juce::FileChooser& fc)
+            {
+                const auto file = fc.getResult();
+                if (! file.existsAsFile()) return;
+                pushUndo();
+                clip->takeFiles.add (file.getFullPathName());
+                clip->activeTake = clip->takeFiles.size() - 1;
+                clip->sourceFile = file;
+                afterClipChange();
+            });
+    }
+
+    void MainComponent::cycleTake (int direction)
+    {
+        auto* clip = dynamic_cast<models::AudioClip*> (context.selectedClip);
+        if (clip == nullptr || clip->getNumTakes() < 2) return;
+
+        pushUndo();
+        const int n = clip->getNumTakes();
+        clip->activeTake = ((clip->activeTake + direction) % n + n) % n;
+        clip->sourceFile = juce::File (clip->takeFiles[clip->activeTake]);
         afterClipChange();
     }
 

@@ -55,6 +55,8 @@ namespace freequency::ui
         if (context.pushUndo) context.pushUndo();
         auto* clip = audioTrack->addClip();
         clip->sourceFile = file;
+        clip->takeFiles.add (file.getFullPathName());
+        clip->activeTake = 0;
         clip->startTime = juce::jmax (0.0, startSeconds);
         clip->name = file.getFileNameWithoutExtension();
 
@@ -371,6 +373,16 @@ namespace freequency::ui
         g.setColour (trackRef.colour.brighter (0.4f));
         const auto length = clip.length > 0.0 ? clip.length : thumb->getTotalLength();
         thumb->drawChannels (g, clipBounds, clip.sourceOffset, clip.sourceOffset + length, 0.9f);
+
+        // Comping indicator (active take / total).
+        if (clip.getNumTakes() > 1)
+        {
+            g.setColour (theme().accentWarm);
+            g.setFont (juce::FontOptions (9.0f));
+            g.drawText ("T" + juce::String (clip.activeTake + 1) + "/" + juce::String (clip.getNumTakes()),
+                        clipBounds.removeFromBottom (12).reduced (3, 0),
+                        juce::Justification::bottomRight, false);
+        }
     }
 
     void TrackLaneComponent::mouseDoubleClick (const juce::MouseEvent& e)
