@@ -330,7 +330,7 @@ namespace freequency::ui
         button (openButton, 58);
         button (keysButton, 52);
         button (audioButton, 58);
-        button (browseButton, 62);
-        button (themeButton, 56);
+        button (browseButton, 64);
+        button (themeButton, 62);
     }
 } // namespace freequency::ui
