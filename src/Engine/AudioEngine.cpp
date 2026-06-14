@@ -1,13 +1,64 @@
 #include "Engine/AudioEngine.h"
 
+#include "Models/AudioTrack.h"
+#include "Models/MidiTrack.h"
+
 namespace omnidaw::engine
 {
     using AudioGraphIOProcessor = juce::AudioProcessorGraph::AudioGraphIOProcessor;
 
+    namespace
+    {
+        /** Load an audio file into memory, resampled to `targetSampleRate`.
+
+            Done on the message thread (during snapshot building) so the audio
+            thread only ever mixes from ready-to-use buffers. Returns nullptr if
+            the file can't be read.
+        */
+        std::unique_ptr<juce::AudioBuffer<float>> loadFileResampled (juce::AudioFormatManager& fm,
+                                                                     const juce::File& file,
+                                                                     double targetSampleRate)
+        {
+            if (! file.existsAsFile())
+                return {};
+
+            std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (file));
+            if (reader == nullptr || reader->lengthInSamples <= 0)
+                return {};
+
+            const int numChannels = (int) juce::jmax ((juce::uint32) 1, reader->numChannels);
+            const auto srcLength   = (int) reader->lengthInSamples;
+
+            juce::AudioBuffer<float> source (numChannels, srcLength);
+            reader->read (&source, 0, srcLength, 0, true, true);
+
+            const double srcRate = reader->sampleRate > 0 ? reader->sampleRate : targetSampleRate;
+
+            if (std::abs (srcRate - targetSampleRate) < 1.0)
+                return std::make_unique<juce::AudioBuffer<float>> (std::move (source));
+
+            // Resample each channel to the engine rate with a Lagrange interpolator.
+            const double ratio = srcRate / targetSampleRate;
+            const int dstLength = (int) std::ceil ((double) srcLength / ratio);
+
+            auto dst = std::make_unique<juce::AudioBuffer<float>> (numChannels, dstLength);
+
+            for (int ch = 0; ch < numChannels; ++ch)
+            {
+                juce::LagrangeInterpolator interp;
+                interp.process (ratio,
+                                source.getReadPointer (ch),
+                                dst->getWritePointer (ch),
+                                dstLength);
+            }
+
+            return dst;
+        }
+    } // namespace
+
     AudioEngine::AudioEngine()
     {
-        // Build the minimal master->output skeleton immediately so the graph is
-        // always in a valid, renderable state even before a project is loaded.
+        formatManager.registerBasicFormats();
         buildBaseGraph();
     }
 
@@ -18,29 +69,19 @@ namespace omnidaw::engine
 
     juce::String AudioEngine::initialise()
     {
-        // 0 input channels, 2 output channels: Phase 1 only needs playback.
-        // Recording inputs are enabled in Phase 5.
-        const auto error = deviceManager.initialiseWithDefaultDevices (0, 2);
+        // 2 inputs (for Phase 5 recording) / 2 outputs.
+        const auto error = deviceManager.initialiseWithDefaultDevices (2, 2);
 
         if (error.isNotEmpty())
         {
-            // No hardware (common in headless/CI). The engine object is still
-            // valid and the graph is built; we simply have nothing to render to.
             DBG ("OmniDAW AudioEngine: audio device init failed: " << error);
             return error;
         }
 
-        // Drive the graph from the device. The player owns the AudioIODeviceCallback
-        // and forwards prepareToPlay / processBlock to the graph for us.
-        player.setProcessor (&graph);
-        deviceManager.addAudioCallback (&player);
-
+        deviceManager.addAudioCallback (this);
         running = true;
         lastReportedSamples = 0;
-
-        // Heartbeat: report engine activity roughly twice a second from the
-        // message thread (never from processBlock).
-        startTimer (500);
+        startTimer (250);
 
         if (auto* device = deviceManager.getCurrentAudioDevice())
         {
@@ -59,22 +100,30 @@ namespace omnidaw::engine
             return;
 
         stopTimer();
-        deviceManager.removeAudioCallback (&player);
-        player.setProcessor (nullptr);
+        deviceManager.removeAudioCallback (this);
         deviceManager.closeAudioDevice();
         running = false;
     }
 
+    // ── Graph construction ──────────────────────────────────────────────────────
+
     void AudioEngine::buildBaseGraph()
     {
         graph.clear();
-        modelToNode.clear();
+        trackChains.clear();
 
-        // The single sink: audio leaving this node goes to the soundcard.
+        // CRITICAL: establish the graph's IO channel count *before* adding and
+        // connecting the IO node. An AudioGraphIOProcessor derives its channel
+        // count from the graph's play config; if we connect to it while the graph
+        // still reports 0 output channels, addConnection silently fails and the
+        // master never reaches the soundcard. We seed a sensible default here and
+        // refine the rate/block size when the device starts (or an offline render
+        // begins).
+        graph.setPlayConfigDetails (0, 2, currentSampleRate, currentBlockSize);
+
         audioOutputNode = graph.addNode (
             std::make_unique<AudioGraphIOProcessor> (AudioGraphIOProcessor::audioOutputNode));
 
-        // The master strip. Everything sums here before hitting the output.
         masterNode = graph.addNode (std::make_unique<TrackProcessor> ("Master"));
 
         connectStereo (masterNode->nodeID, audioOutputNode->nodeID);
@@ -82,18 +131,44 @@ namespace omnidaw::engine
 
     void AudioEngine::connectStereo (NodeID source, NodeID destination)
     {
-        // Wire both stereo channels (0 -> 0, 1 -> 1). addConnection silently
-        // returns false if a channel doesn't exist, which is fine for mono nodes.
         graph.addConnection ({ { source, 0 }, { destination, 0 } });
         graph.addConnection ({ { source, 1 }, { destination, 1 } });
     }
 
-    TrackProcessor* AudioEngine::getProcessorFor (NodeID nodeId) const noexcept
+    void AudioEngine::connectMidi (NodeID source, NodeID destination)
     {
-        if (auto* node = graph.getNodeForId (nodeId))
-            return dynamic_cast<TrackProcessor*> (node->getProcessor());
+        graph.addConnection ({ { source, Graph::midiChannelIndex },
+                               { destination, Graph::midiChannelIndex } });
+    }
 
-        return nullptr;
+    void AudioEngine::addTrackChain (models::Track& track)
+    {
+        TrackChain chain;
+
+        // Channel strip is common to every track type.
+        auto stripNode = graph.addNode (std::make_unique<TrackProcessor> (track.name));
+        chain.strip = stripNode->nodeID;
+        connectStereo (chain.strip, masterNode->nodeID);
+
+        if (track.getType() == models::TrackType::midi)
+        {
+            auto sourceNode = graph.addNode (std::make_unique<MidiSourceProcessor> (transport));
+            auto instNode   = graph.addNode (std::make_unique<SynthProcessor>());
+
+            chain.source     = sourceNode->nodeID;
+            chain.instrument = instNode->nodeID;
+
+            connectMidi (chain.source, chain.instrument);
+            connectStereo (chain.instrument, chain.strip);
+        }
+        else
+        {
+            auto sourceNode = graph.addNode (std::make_unique<AudioClipProcessor> (transport));
+            chain.source = sourceNode->nodeID;
+            connectStereo (chain.source, chain.strip);
+        }
+
+        trackChains[track.getId().toDashedString().toStdString()] = chain;
     }
 
     void AudioEngine::setProject (models::Project* project)
@@ -104,14 +179,11 @@ namespace omnidaw::engine
 
     void AudioEngine::rebuildGraph()
     {
-        // Mutating the graph topology is only safe while the audio thread is not
-        // rendering it. Detaching the player suspends rendering for the duration
-        // of the rebuild; we re-attach afterwards. This keeps us clear of the
-        // audio thread without any locks in processBlock.
+        // Suspend rendering for the structural edit by detaching the callback.
         const bool wasRunning = running;
 
         if (wasRunning)
-            player.setProcessor (nullptr);
+            deviceManager.removeAudioCallback (this);
 
         buildBaseGraph();
 
@@ -120,27 +192,97 @@ namespace omnidaw::engine
             auto& timeline = currentProject->getTimeline();
 
             for (int i = 0; i < timeline.getNumTracks(); ++i)
-            {
-                auto* track = timeline.getTrack (i);
-                if (track == nullptr)
-                    continue;
-
-                // Each model Track becomes a TrackProcessor node feeding master.
-                // (Insert FX / instrument nodes are inserted upstream of this in
-                // later phases.)
-                auto node = graph.addNode (
-                    std::make_unique<TrackProcessor> (track->name));
-
-                modelToNode[track->getId().toDashedString().toStdString()] = node->nodeID;
-
-                connectStereo (node->nodeID, masterNode->nodeID);
-            }
+                if (auto* track = timeline.getTrack (i))
+                    addTrackChain (*track);
         }
 
         syncParametersFromModel();
+        rebuildSequences();
 
         if (wasRunning)
-            player.setProcessor (&graph);
+            deviceManager.addAudioCallback (this);
+    }
+
+    void AudioEngine::rebuildSequences()
+    {
+        if (currentProject == nullptr)
+            return;
+
+        const double sr = transport.getSampleRate() > 0 ? transport.getSampleRate() : 44100.0;
+        auto& timeline = currentProject->getTimeline();
+
+        for (int i = 0; i < timeline.getNumTracks(); ++i)
+        {
+            auto* track = timeline.getTrack (i);
+            if (track == nullptr)
+                continue;
+
+            const auto it = trackChains.find (track->getId().toDashedString().toStdString());
+            if (it == trackChains.end())
+                continue;
+
+            if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (track))
+            {
+                auto snapshot = new MidiSequenceSnapshot();
+
+                for (int c = 0; c < midiTrack->getNumClips(); ++c)
+                {
+                    auto* clip = dynamic_cast<models::MidiClip*> (midiTrack->getClip (c));
+                    if (clip == nullptr)
+                        continue;
+
+                    const auto clipStartSamples = clip->startTime * sr;
+
+                    for (int e = 0; e < clip->sequence.getNumEvents(); ++e)
+                    {
+                        auto m = clip->sequence.getEventPointer (e)->message;
+                        m.setTimeStamp (clipStartSamples + m.getTimeStamp() * sr);
+                        snapshot->events.addEvent (m);
+                    }
+                }
+
+                snapshot->events.updateMatchedPairs();
+                snapshot->events.sort();
+                if (snapshot->events.getNumEvents() > 0)
+                    snapshot->endSample = (juce::int64) snapshot->events.getEndTime();
+
+                if (auto* src = getMidiSource (it->second.source))
+                    src->setSnapshot (snapshot);
+            }
+            else if (auto* audioTrack = dynamic_cast<models::AudioTrack*> (track))
+            {
+                auto snapshot = new AudioClipSnapshot();
+
+                for (int c = 0; c < audioTrack->getNumClips(); ++c)
+                {
+                    auto* clip = dynamic_cast<models::AudioClip*> (audioTrack->getClip (c));
+                    if (clip == nullptr)
+                        continue;
+
+                    auto buffer = loadFileResampled (formatManager, clip->sourceFile, sr);
+                    if (buffer == nullptr)
+                        continue;
+
+                    AudioClipSnapshot::Region region;
+                    region.bufferIndex          = snapshot->buffers.size();
+                    region.timelineStartSample  = (juce::int64) (clip->startTime * sr);
+                    region.sourceOffsetSamples  = (juce::int64) (clip->sourceOffset * sr);
+                    region.gain                 = clip->gain;
+
+                    const auto available = (juce::int64) buffer->getNumSamples() - region.sourceOffsetSamples;
+                    region.lengthSamples = clip->length > 0.0
+                                               ? (juce::int64) (clip->length * sr)
+                                               : juce::jmax ((juce::int64) 0, available);
+                    region.lengthSamples = juce::jmin (region.lengthSamples, juce::jmax ((juce::int64) 0, available));
+
+                    snapshot->buffers.add (buffer.release());
+                    snapshot->regions.push_back (region);
+                }
+
+                if (auto* src = getAudioSource (it->second.source))
+                    src->setSnapshot (snapshot);
+            }
+        }
     }
 
     void AudioEngine::syncParametersFromModel()
@@ -156,45 +298,183 @@ namespace omnidaw::engine
             if (track == nullptr)
                 continue;
 
-            const auto it = modelToNode.find (track->getId().toDashedString().toStdString());
-            if (it == modelToNode.end())
+            const auto it = trackChains.find (track->getId().toDashedString().toStdString());
+            if (it == trackChains.end())
                 continue;
 
-            if (auto* proc = getProcessorFor (it->second))
+            if (auto* strip = getStripProcessor (it->second.strip))
             {
-                proc->setGain (track->getVolume());
-                proc->setPan (track->getPan());
-                proc->setMuted (track->isMuted());
+                strip->setGain (track->getVolume());
+                strip->setPan (track->getPan());
+                strip->setMuted (track->isMuted());
             }
         }
 
-        // Master volume comes from the mixer model.
-        if (auto* master = getProcessorFor (masterNode->nodeID))
+        if (auto* master = getStripProcessor (masterNode->nodeID))
             master->setGain (currentProject->getMixer().getMasterBus().getVolume());
+    }
+
+    // ── Node lookup helpers ─────────────────────────────────────────────────────
+
+    TrackProcessor* AudioEngine::getStripProcessor (NodeID nodeId) const noexcept
+    {
+        if (auto* node = graph.getNodeForId (nodeId))
+            return dynamic_cast<TrackProcessor*> (node->getProcessor());
+        return nullptr;
+    }
+
+    MidiSourceProcessor* AudioEngine::getMidiSource (NodeID nodeId) const noexcept
+    {
+        if (auto* node = graph.getNodeForId (nodeId))
+            return dynamic_cast<MidiSourceProcessor*> (node->getProcessor());
+        return nullptr;
+    }
+
+    AudioClipProcessor* AudioEngine::getAudioSource (NodeID nodeId) const noexcept
+    {
+        if (auto* node = graph.getNodeForId (nodeId))
+            return dynamic_cast<AudioClipProcessor*> (node->getProcessor());
+        return nullptr;
     }
 
     juce::int64 AudioEngine::getMasterProcessedSampleCount() const noexcept
     {
-        if (masterNode == nullptr)
-            return 0;
-
-        if (auto* master = getProcessorFor (masterNode->nodeID))
+        if (auto* master = getStripProcessor (masterNode->nodeID))
             return master->getProcessedSampleCount();
-
         return 0;
     }
 
+    float AudioEngine::renderOfflinePeak (double sampleRate, double seconds, int blockSize)
+    {
+        currentSampleRate = sampleRate;
+        currentBlockSize = blockSize;
+        transport.prepare (sampleRate);
+        graph.setPlayConfigDetails (0, 2, sampleRate, blockSize);
+        graph.prepareToPlay (sampleRate, blockSize);
+
+        rebuildSequences();
+
+        transport.setPositionSamples (0);
+        transport.play();
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        const auto totalSamples = (juce::int64) std::llround (seconds * sampleRate);
+        juce::int64 done = 0;
+        float peak = 0.0f;
+
+        while (done < totalSamples)
+        {
+            const int n = (int) juce::jmin ((juce::int64) blockSize, totalSamples - done);
+            buffer.setSize (2, n, false, false, true);
+            buffer.clear();
+            midi.clear();
+
+            graph.processBlock (buffer, midi);
+            transport.advance (n);
+
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, n));
+
+            done += n;
+        }
+
+        transport.stop();
+        transport.setPositionSamples (0);
+        graph.releaseResources();
+
+        return peak;
+    }
+
+    // ── Audio device callback ───────────────────────────────────────────────────
+
+    void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
+    {
+        const auto sr = device->getCurrentSampleRate();
+        const auto blockSize = device->getCurrentBufferSizeSamples();
+
+        currentSampleRate = sr;
+        currentBlockSize = blockSize;
+        transport.prepare (sr);
+
+        // The graph is output-only (2 ch). Prepare it and a scratch buffer big
+        // enough for the largest expected block so the callback never allocates.
+        graph.setPlayConfigDetails (0, 2, sr, blockSize);
+        graph.prepareToPlay (sr, blockSize);
+
+        renderBuffer.setSize (2, juce::jmax (16, blockSize));
+        scratchMidi.ensureSize (2048);
+
+        // Sample-rate-dependent data (clip resampling, MIDI sample times) must be
+        // rebuilt now that we know the device rate.
+        rebuildSequences();
+    }
+
+    void AudioEngine::audioDeviceStopped()
+    {
+        graph.releaseResources();
+    }
+
+    void AudioEngine::audioDeviceIOCallbackWithContext (const float* const*,
+                                                        int,
+                                                        float* const* outputChannelData,
+                                                        int numOutputChannels,
+                                                        int numSamples,
+                                                        const juce::AudioIODeviceCallbackContext&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+
+        // Render the whole graph into our stereo scratch buffer.
+        renderBuffer.setSize (2, numSamples, false, false, true);
+        renderBuffer.clear();
+        scratchMidi.clear();
+
+        graph.processBlock (renderBuffer, scratchMidi);
+
+        // Advance the playhead AFTER processing so every node saw the same
+        // block-start position.
+        transport.advance (numSamples);
+
+        // Copy to the device and compute a simple master peak for metering.
+        float peak = 0.0f;
+
+        for (int ch = 0; ch < numOutputChannels; ++ch)
+        {
+            if (outputChannelData[ch] == nullptr)
+                continue;
+
+            const int srcCh = juce::jmin (ch, renderBuffer.getNumChannels() - 1);
+            const auto* src = renderBuffer.getReadPointer (srcCh);
+            juce::FloatVectorOperations::copy (outputChannelData[ch], src, numSamples);
+        }
+
+        for (int ch = 0; ch < renderBuffer.getNumChannels(); ++ch)
+            peak = juce::jmax (peak, renderBuffer.getMagnitude (ch, 0, numSamples));
+
+        masterLevel.store (peak, std::memory_order_relaxed);
+    }
+
+    // ── Heartbeat / housekeeping ────────────────────────────────────────────────
+
     void AudioEngine::timerCallback()
     {
+        // Free retired snapshots on the message thread (never the audio thread).
+        for (auto& [id, chain] : trackChains)
+        {
+            if (auto* src = getMidiSource (chain.source))
+                src->collectGarbage();
+            if (auto* src = getAudioSource (chain.source))
+                src->collectGarbage();
+        }
+
         const auto total = getMasterProcessedSampleCount();
         const auto delta = total - lastReportedSamples;
 
         if (delta > 0)
         {
-            // Phase 1's "print to the console when audio is processed" — done the
-            // real-time-safe way: read an atomic that the audio thread bumped.
             DBG ("OmniDAW AudioEngine: processed " << delta
-                 << " samples (total " << total << ")");
+                 << " samples (pos " << transport.getPositionSeconds() << "s)");
             lastReportedSamples = total;
         }
     }

@@ -1,6 +1,11 @@
 #include "UI/MainComponent.h"
+#include "Models/Project.h"
+#include "Models/MidiTrack.h"
+#include "Engine/AudioEngine.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
+#include <iostream>
 
 /*
     Application entry point for OmniDAW.
@@ -21,8 +26,18 @@ namespace omnidaw
         const juce::String getApplicationVersion() override { return "0.1.0"; }
         bool moreThanOneInstanceAllowed() override          { return true; }
 
-        void initialise (const juce::String&) override
+        void initialise (const juce::String& commandLine) override
         {
+            // Headless self-test: render a known MIDI note offline and report the
+            // output peak, then quit. Lets CI verify the engine makes sound with
+            // no soundcard. Usage: OmniDAW --selftest
+            if (commandLine.contains ("--selftest"))
+            {
+                runSelfTest();
+                quit();
+                return;
+            }
+
             mainWindow = std::make_unique<MainWindow> (getApplicationName());
         }
 
@@ -34,6 +49,34 @@ namespace omnidaw
         void systemRequestedQuit() override { quit(); }
 
     private:
+        /** Builds a tiny project (one MIDI note on the built-in synth) and renders
+            it offline, printing the peak level so a non-zero result proves the
+            signal path Transport -> MidiSource -> Synth -> strip -> master works.
+        */
+        static void runSelfTest()
+        {
+            models::Project project;
+
+            auto* midiTrack = project.getTimeline().addMidiTrack();
+            auto* clip = midiTrack->addClip();
+            clip->startTime = 0.0;
+            clip->length = 1.0;
+
+            // A 0.5s middle-C on channel 1, velocity 100.
+            clip->sequence.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0.0);
+            clip->sequence.addEvent (juce::MidiMessage::noteOff (1, 60), 0.5);
+            clip->sequence.updateMatchedPairs();
+
+            engine::AudioEngine audioEngine;
+            audioEngine.setProject (&project);
+
+            const float peak = audioEngine.renderOfflinePeak (44100.0, 1.0);
+
+            std::cout << "OmniDAW self-test: rendered peak = " << peak
+                      << (peak > 0.0001f ? "  [PASS]" : "  [FAIL: silence]")
+                      << std::endl;
+        }
+
         /** A standard resizable document window hosting the MainComponent. */
         class MainWindow final : public juce::DocumentWindow
         {

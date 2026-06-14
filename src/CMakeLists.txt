@@ -23,6 +23,9 @@ target_sources(OmniDAW PRIVATE
     # ── Engine ───────────────────────────────────────────────────────────────
     Engine/AudioEngine.cpp
     Engine/TrackProcessor.cpp
+    Engine/MidiSourceProcessor.cpp
+    Engine/AudioClipProcessor.cpp
+    Engine/SynthProcessor.cpp
 
     # ── Models ───────────────────────────────────────────────────────────────
     Models/Clip.cpp
@@ -69,5 +72,11 @@ target_link_libraries(OmniDAW PRIVATE
     juce::juce_gui_extra
     PRIVATE
     juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+# Link-time optimisation is great for release performance but slow to link, which
+# hurts iteration. Default ON; configure with -DOMNIDAW_ENABLE_LTO=OFF to disable.
+option(OMNIDAW_ENABLE_LTO "Enable link-time optimisation" ON)
+if(OMNIDAW_ENABLE_LTO)
+    target_link_libraries(OmniDAW PRIVATE juce::juce_recommended_lto_flags)
+endif()
