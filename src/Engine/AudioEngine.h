@@ -8,6 +8,7 @@
 #include "DSP/SynthProcessor.h"
 #include "DSP/LimiterProcessor.h"
 #include "Engine/MetronomeProcessor.h"
+#include "Engine/PreviewProcessor.h"
 #include "Engine/PluginManager.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -149,6 +150,10 @@ namespace freequency::engine
         /** CPU load (0..1) reported by the audio device. */
         [[nodiscard]] double getCpuUsage() const noexcept { return deviceManager.getCpuUsage(); }
 
+        /** Audition an audio file through the master (media-browser preview). */
+        void previewFile (const juce::File& file);
+        void stopPreview();
+
         // ── juce::AudioIODeviceCallback ─────────────────────────────────────────
         void audioDeviceAboutToStart (juce::AudioIODevice*) override;
         void audioDeviceStopped() override;
@@ -200,6 +205,7 @@ namespace freequency::engine
         Node::Ptr masterNode;
         Node::Ptr limiterNode;
         Node::Ptr metronomeNode;
+        Node::Ptr previewNode;
 
         std::unordered_map<std::string, TrackChain> trackChains;
         std::unordered_map<std::string, NodeID> busNodes; // bus id -> strip node

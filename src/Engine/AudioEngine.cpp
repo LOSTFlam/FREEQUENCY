@@ -173,6 +173,10 @@ namespace freequency::engine
         // so it's always audible but still protected by the limiter.
         metronomeNode = graph.addNode (std::make_unique<MetronomeProcessor> (transport));
         connectStereo (metronomeNode->nodeID, limiterNode->nodeID);
+
+        // Media-browser preview also sums into the limiter path.
+        previewNode = graph.addNode (std::make_unique<PreviewProcessor>());
+        connectStereo (previewNode->nodeID, limiterNode->nodeID);
     }
 
     std::unique_ptr<juce::AudioProcessor> AudioEngine::createInsertProcessor (const juce::String& identifier)
@@ -608,6 +612,29 @@ namespace freequency::engine
                     l->setEnabled (limiterOn);
     }
 
+    void AudioEngine::previewFile (const juce::File& file)
+    {
+        const double sr = transport.getSampleRate() > 0 ? transport.getSampleRate() : 44100.0;
+        auto buffer = loadFileResampled (formatManager, file, sr);
+        if (buffer == nullptr)
+            return;
+
+        auto clip = new PreviewClip();
+        clip->buffer = std::move (*buffer);
+
+        if (auto* node = graph.getNodeForId (previewNode->nodeID))
+            if (auto* p = dynamic_cast<PreviewProcessor*> (node->getProcessor()))
+                p->play (clip);
+    }
+
+    void AudioEngine::stopPreview()
+    {
+        if (previewNode != nullptr)
+            if (auto* node = graph.getNodeForId (previewNode->nodeID))
+                if (auto* p = dynamic_cast<PreviewProcessor*> (node->getProcessor()))
+                    p->stop();
+    }
+
     void AudioEngine::setMetronomeEnabled (bool e)
     {
         metronomeOn = e;
@@ -1034,6 +1061,11 @@ namespace freequency::engine
             if (auto* strip = getStripProcessor (chain.strip))
                 strip->collectGarbage();
         }
+
+        if (previewNode != nullptr)
+            if (auto* node = graph.getNodeForId (previewNode->nodeID))
+                if (auto* p = dynamic_cast<PreviewProcessor*> (node->getProcessor()))
+                    p->collectGarbage();
 
         const auto total = getMasterProcessedSampleCount();
         const auto delta = total - lastReportedSamples;

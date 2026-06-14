@@ -25,6 +25,7 @@ namespace freequency::ui
         After any edit the engine's sequences are rebuilt so playback matches.
     */
     class TrackLaneComponent final : public juce::Component,
+                                     public juce::DragAndDropTarget,
                                      private juce::ChangeListener
     {
     public:
@@ -41,6 +42,13 @@ namespace freequency::ui
         void refreshClips();
 
         std::function<void()> onClipsChanged;
+
+        // juce::DragAndDropTarget — accept audio files dragged from the browser.
+        bool isInterestedInDragSource (const SourceDetails&) override;
+        void itemDropped (const SourceDetails&) override;
+
+        /** Import an audio file as a clip at the given timeline position. */
+        void importAudioFile (const juce::File&, double startSeconds);
 
     private:
         void changeListenerCallback (juce::ChangeBroadcaster*) override;

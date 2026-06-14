@@ -15,7 +15,7 @@ namespace freequency::ui
             toggleMixerView, addAudioTrack, addMidiTrack, saveProject, openProject,
             openKeyMappings, duplicateClip, splitClip, deleteClip, reverseClip, nudgeLeft, nudgeRight,
             playheadLeft, playheadRight, tempoUp, tempoDown, toggleKeyboardPiano,
-            octaveUp, octaveDown, undo, redo, openAudioSettings
+            octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser
         };
     }
 
@@ -83,6 +83,12 @@ namespace freequency::ui
         transportBar->onToggleMixer = [this] { toggleMixer(); };
         transportBar->onOpenSettings = [this] { openKeyMappings(); };
         transportBar->onOpenAudioSettings = [this] { openAudioSettings(); };
+        transportBar->onToggleBrowser = [this]
+        {
+            browserVisible = ! browserVisible;
+            if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
+            resized();
+        };
         addAndMakeVisible (*transportBar);
 
         arrangeView = std::make_unique<ArrangeView> (context);
@@ -94,6 +100,10 @@ namespace freequency::ui
         statusBar = std::make_unique<StatusBar> (context);
         addAndMakeVisible (*statusBar);
 
+        mediaBrowser = std::make_unique<MediaBrowser> (context);
+        addChildComponent (*mediaBrowser); // shown when toggled
+        context.getBrowserSelectedFile = [this] { return mediaBrowser->getSelectedFile(); };
+
         // ── Remappable hotkey system ────────────────────────────────────────────
         commandManager.registerAllCommandsForTarget (this);
         if (auto xml = juce::XmlDocument::parse (keyMappingsFile()))
@@ -103,7 +113,7 @@ namespace freequency::ui
         // Receive keyboard shortcuts + computer-keyboard piano.
         setWantsKeyboardFocus (true);
 
-        setSize (1460, 820);
+        setSize (1560, 840);
     }
 
     MainComponent::~MainComponent()
@@ -180,7 +190,8 @@ namespace freequency::ui
             CommandIDs::nudgeLeft, CommandIDs::nudgeRight, CommandIDs::playheadLeft,
             CommandIDs::playheadRight, CommandIDs::tempoUp, CommandIDs::tempoDown,
             CommandIDs::toggleKeyboardPiano, CommandIDs::octaveUp, CommandIDs::octaveDown,
-            CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings });
+            CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings,
+            CommandIDs::toggleBrowser });
     }
 
     void MainComponent::getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& r)
@@ -216,6 +227,7 @@ namespace freequency::ui
             case CommandIDs::undo:            r.setInfo ("Undo", "", ed, 0); r.addDefaultKeypress ('z', ModifierKeys::commandModifier); break;
             case CommandIDs::redo:            r.setInfo ("Redo", "", ed, 0); r.addDefaultKeypress ('z', ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
             case CommandIDs::openAudioSettings: r.setInfo ("Audio Settings…", "Choose device / sample rate / buffer", vw, 0); r.addDefaultKeypress (KeyPress::F1Key, 0); break;
+            case CommandIDs::toggleBrowser:   r.setInfo ("Toggle Browser", "Media/sample browser", vw, 0); r.addDefaultKeypress (KeyPress::F2Key, 0); break;
 
             case CommandIDs::toggleKeyboardPiano: r.setInfo ("Computer-Keyboard Piano", "Play instruments via QWERTY", in, 0); r.addDefaultKeypress (KeyPress::tabKey, 0); break;
             case CommandIDs::octaveUp:        r.setInfo ("Piano Octave +", "", in, 0); r.addDefaultKeypress ('x', 0); break;
@@ -256,6 +268,11 @@ namespace freequency::ui
             case CommandIDs::undo:            performUndo(); break;
             case CommandIDs::redo:            performRedo(); break;
             case CommandIDs::openAudioSettings: openAudioSettings(); break;
+            case CommandIDs::toggleBrowser:
+                browserVisible = ! browserVisible;
+                if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
+                resized();
+                break;
 
             case CommandIDs::toggleKeyboardPiano: pianoEnabled = ! pianoEnabled; if (! pianoEnabled) allPianoNotesOff(); break;
             case CommandIDs::octaveUp:        allPianoNotesOff(); pianoOctave = juce::jmin (9, pianoOctave + 1); break;
@@ -279,6 +296,9 @@ namespace freequency::ui
 
         if (statusBar != nullptr)
             statusBar->setBounds (r.removeFromBottom (24));
+
+        if (browserVisible && mediaBrowser != nullptr)
+            mediaBrowser->setBounds (r.removeFromLeft (250));
 
         if (arrangeView != nullptr)
             arrangeView->setBounds (r);
