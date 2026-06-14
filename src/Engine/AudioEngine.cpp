@@ -2,6 +2,7 @@
 
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
+#include "DSP/BuiltinEffects.h"
 
 namespace freequency::engine
 {
@@ -240,13 +241,24 @@ namespace freequency::engine
             // source/instrument and the channel strip.
             for (const auto& identifier : track.insertPluginIdentifiers)
             {
-                juce::String error;
-                auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
-                if (fx == nullptr)
+                std::unique_ptr<juce::AudioProcessor> fx;
+
+                if (dsp::BuiltinEffects::isBuiltin (identifier))
                 {
-                    DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
-                    continue;
+                    fx = dsp::BuiltinEffects::create (identifier);
                 }
+                else
+                {
+                    juce::String error;
+                    fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
+                    if (fx == nullptr)
+                    {
+                        DBG ("FREEQUENCY: insert FX load failed (" << error << ")");
+                    }
+                }
+
+                if (fx == nullptr)
+                    continue;
 
                 auto fxNode = graph.addNode (std::move (fx));
                 connectStereo (lastAudioNode, fxNode->nodeID);
@@ -556,6 +568,22 @@ namespace freequency::engine
             return strip->getOutputLevel();
 
         return 0.0f;
+    }
+
+    juce::AudioProcessor* AudioEngine::getInsertProcessor (const models::Track& track, int slot) const noexcept
+    {
+        const auto it = trackChains.find (track.getId().toDashedString().toStdString());
+        if (it == trackChains.end())
+            return nullptr;
+
+        const auto& inserts = it->second.inserts;
+        if (slot < 0 || slot >= (int) inserts.size())
+            return nullptr;
+
+        if (auto* node = graph.getNodeForId (inserts[(size_t) slot]))
+            return node->getProcessor();
+
+        return nullptr;
     }
 
     float AudioEngine::getBusLevel (const models::Bus& bus) const noexcept

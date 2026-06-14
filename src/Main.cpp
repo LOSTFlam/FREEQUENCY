@@ -3,6 +3,7 @@
 #include "Models/MidiTrack.h"
 #include "Models/ProjectSerializer.h"
 #include "Engine/AudioEngine.h"
+#include "DSP/BuiltinEffects.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -165,6 +166,30 @@ namespace freequency
                                 && vca->getControlledTrackIds().size() == 1;
                 std::cout << "FREEQUENCY self-test: hybrid model "
                           << (ok ? "[PASS]" : "[FAIL]") << std::endl;
+            }
+
+            // Built-in effect: a Utility insert turned down to -60 dB must nearly
+            // silence the track, proving built-in FX run in the insert chain and
+            // their parameters are live.
+            {
+                models::Project p;
+                auto* mt = p.getTimeline().addMidiTrack();
+                auto* fxClip = mt->addClip();
+                fxClip->startTime = 0.0; fxClip->length = 1.0;
+                fxClip->sequence.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0.0);
+                fxClip->sequence.addEvent (juce::MidiMessage::noteOff (1, 60), 0.5);
+                fxClip->sequence.updateMatchedPairs();
+                mt->insertPluginIdentifiers.add ("builtin:utility");
+
+                engine::AudioEngine e;
+                e.setProject (&p);
+                if (auto* base = dynamic_cast<dsp::BuiltinEffectBase*> (e.getInsertProcessor (*mt, 0)))
+                    if (auto* gain = base->getState().getParameter ("gain"))
+                        gain->setValueNotifyingHost (0.0f); // normalised 0 == -60 dB
+
+                const float fxPeak = e.renderOfflinePeak (44100.0, 1.0, 512, 0.1);
+                std::cout << "FREEQUENCY self-test: builtin FX (utility -60dB) peak = " << fxPeak
+                          << (fxPeak < 0.02f ? "  [PASS]" : "  [FAIL]") << std::endl;
             }
         }
 

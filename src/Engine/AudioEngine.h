@@ -106,6 +106,10 @@ namespace freequency::engine
         /** Post-fader output level (0..1) of a bus strip, for the mixer meters. */
         [[nodiscard]] float getBusLevel (const models::Bus& bus) const noexcept;
 
+        /** Returns the live AudioProcessor for a track's insert slot, or nullptr.
+            Used by the UI to pop up a plugin/effect editor for that insert. */
+        [[nodiscard]] juce::AudioProcessor* getInsertProcessor (const models::Track& track, int slot) const noexcept;
+
         /** Offline (non-realtime) render of the current project for `seconds`,
             starting from timeline position 0 with the transport playing. Returns
             the peak magnitude of the rendered output. Used by the headless

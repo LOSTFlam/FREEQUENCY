@@ -82,7 +82,8 @@ freequency_add_library(FreequencyCore
 # ── FreequencyDSP — self-contained signal processors (no transport/model) ────────
 freequency_add_library(FreequencyDSP
     DSP/SynthProcessor.cpp
-    DSP/LimiterProcessor.cpp)
+    DSP/LimiterProcessor.cpp
+    DSP/BuiltinEffects.cpp)
 
 # ── FreequencyEngine — real-time audio graph, transport, sequencing ─────────────
 freequency_add_library(FreequencyEngine
