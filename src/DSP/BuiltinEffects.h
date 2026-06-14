@@ -147,6 +147,59 @@ namespace freequency::dsp
         double sr { 44100.0 };
     };
 
+    /** Resonant multimode filter (low-pass / high-pass / band-pass). */
+    class FilterProcessor final : public BuiltinEffectBase
+    {
+    public:
+        FilterProcessor();
+        void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        juce::dsp::StateVariableTPTFilter<float> filter;
+    };
+
+    /** Noise gate with threshold / attack / release / range. */
+    class GateProcessor final : public BuiltinEffectBase
+    {
+    public:
+        GateProcessor();
+        void prepareToPlay (double sampleRate, int) override { sr = sampleRate; env = 0.0f; }
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        double sr { 44100.0 };
+        float env { 0.0f };
+    };
+
+    /** Stereo chorus (rate, depth, centre delay, feedback, mix). */
+    class ChorusProcessor final : public BuiltinEffectBase
+    {
+    public:
+        ChorusProcessor();
+        void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        juce::dsp::Chorus<float> chorus;
+    };
+
+    /** Phaser (rate, depth, centre freq, feedback, mix). */
+    class PhaserProcessor final : public BuiltinEffectBase
+    {
+    public:
+        PhaserProcessor();
+        void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        juce::dsp::Phaser<float> phaser;
+    };
+
     /** Factory + catalogue of the built-in effects. */
     struct BuiltinEffectInfo
     {
