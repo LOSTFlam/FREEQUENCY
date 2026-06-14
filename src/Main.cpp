@@ -191,6 +191,32 @@ namespace freequency
                 std::cout << "FREEQUENCY self-test: builtin FX (utility -60dB) peak = " << fxPeak
                           << (fxPeak < 0.02f ? "  [PASS]" : "  [FAIL]") << std::endl;
             }
+
+            // Serializer round-trip of the newer model fields (used by undo/redo):
+            // output routing, reversed clips, FX bus and VCA track.
+            {
+                models::Project p;
+                auto* a = p.getTimeline().addAudioTrack();
+                auto* fx = p.getMixer().addFxBus ("FX");
+                a->outputBusId = fx->getId().toDashedString();
+                auto* rc = a->addClip(); rc->name = "rev"; rc->reversed = true;
+                p.getTimeline().addVCATrack();
+
+                const auto tree = models::ProjectSerializer::toValueTree (p);
+                models::Project p2;
+                models::ProjectSerializer::fromValueTree (tree, p2);
+
+                auto* a2 = dynamic_cast<models::AudioTrack*> (p2.getTimeline().getTrack (0));
+                auto* clip2 = a2 != nullptr && a2->getNumClips() > 0
+                                  ? dynamic_cast<models::AudioClip*> (a2->getClip (0)) : nullptr;
+                const bool ok = p2.getTimeline().getNumTracks() == 2
+                                && p2.getMixer().getNumBuses() == 2
+                                && a2 != nullptr && a2->outputBusId.isNotEmpty()
+                                && clip2 != nullptr && clip2->reversed
+                                && dynamic_cast<models::VCATrack*> (p2.getTimeline().getTrack (1)) != nullptr;
+                std::cout << "FREEQUENCY self-test: serializer (routing/reverse/vca) "
+                          << (ok ? "[PASS]" : "[FAIL]") << std::endl;
+            }
         }
 
         /** A standard resizable document window hosting the MainComponent. */

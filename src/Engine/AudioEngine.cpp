@@ -70,8 +70,15 @@ namespace freequency::engine
 
     juce::String AudioEngine::initialise()
     {
-        // 2 inputs (for Phase 5 recording) / 2 outputs.
-        const auto error = deviceManager.initialiseWithDefaultDevices (2, 2);
+        // Restore the user's saved audio device / sample-rate / buffer choice if
+        // present, otherwise open sensible defaults (2 in / 2 out).
+        const auto settingsFile = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                                      .getChildFile ("FREEQUENCY").getChildFile ("audio.xml");
+        std::unique_ptr<juce::XmlElement> saved;
+        if (settingsFile.existsAsFile())
+            saved = juce::XmlDocument::parse (settingsFile);
+
+        const auto error = deviceManager.initialise (2, 2, saved.get(), true);
 
         if (error.isNotEmpty())
         {
@@ -101,6 +108,15 @@ namespace freequency::engine
 
         if (recordThread.isThreadRunning())
             recordThread.stopThread (2000);
+
+        // Persist the current audio device configuration for next launch.
+        if (auto state = deviceManager.createStateXml())
+        {
+            const auto settingsFile = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                                          .getChildFile ("FREEQUENCY").getChildFile ("audio.xml");
+            settingsFile.getParentDirectory().createDirectory();
+            state->writeTo (settingsFile);
+        }
 
         if (! running && ! deviceManager.getCurrentAudioDevice())
             return;
@@ -439,6 +455,12 @@ namespace freequency::engine
                     auto buffer = loadFileResampled (formatManager, clip->sourceFile, sr);
                     if (buffer == nullptr)
                         continue;
+
+                    // Reverse playback: flip the pre-loaded sample data once here,
+                    // so the audio thread still just streams it forwards.
+                    if (clip->reversed)
+                        for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
+                            buffer->reverse (ch, 0, buffer->getNumSamples());
 
                     AudioClipSnapshot::Region region;
                     region.bufferIndex          = snapshot->buffers.size();

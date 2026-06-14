@@ -189,6 +189,14 @@ namespace freequency::ui
 
             context.selectedTrack = &trackRef;
             context.selectedClip = hit;
+
+            // Begin a potential clip drag (move). The actual move happens in
+            // mouseDrag; a mouse-up with no movement is just a selection.
+            dragClip = hit;
+            dragOrigStart = hit != nullptr ? hit->startTime : 0.0;
+            dragStartX = e.x;
+            didDrag = false;
+
             if (context.repaintArrange) context.repaintArrange();
             return;
         }
@@ -221,6 +229,20 @@ namespace freequency::ui
 
     void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
     {
+        // Clip move (arrange mode).
+        if (! trackRef.volumeAutomationEnabled && dragClip != nullptr)
+        {
+            if (! didDrag)
+            {
+                if (context.pushUndo) context.pushUndo();
+                didDrag = true;
+            }
+            const double deltaSec = context.xToSeconds (e.x) - context.xToSeconds (dragStartX);
+            dragClip->startTime = context.snapTime (juce::jmax (0.0, dragOrigStart + deltaSec));
+            repaint();
+            return;
+        }
+
         if (! trackRef.volumeAutomationEnabled || draggingPoint < 0)
             return;
 
@@ -233,6 +255,14 @@ namespace freequency::ui
 
     void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
     {
+        if (dragClip != nullptr)
+        {
+            if (didDrag)
+                context.engine.rebuildSequences(); // clip moved -> resync playback timing
+            dragClip = nullptr;
+            didDrag = false;
+        }
+
         if (draggingPoint >= 0)
         {
             trackRef.volumeAutomation.sortPoints();
@@ -317,6 +347,7 @@ namespace freequency::ui
 
         if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&trackRef))
         {
+            if (context.pushUndo) context.pushUndo();
             const auto& timeline = context.project.getTimeline();
             const auto secsPerBar = (60.0 / juce::jmax (1.0, timeline.getTempoBpm()))
                                     * juce::jmax (1, timeline.getTimeSigNumerator());
@@ -353,6 +384,7 @@ namespace freequency::ui
                     if (! file.existsAsFile())
                         return;
 
+                    if (context.pushUndo) context.pushUndo();
                     auto* clip = audioTrack->addClip();
                     clip->sourceFile = file;
                     clip->startTime = clickedSeconds;

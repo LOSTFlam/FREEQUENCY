@@ -13,9 +13,9 @@ namespace freequency::ui
         {
             playStop = 0x2001, recordToggle, returnToStart, toggleLoop, toggleMetronome,
             toggleMixerView, addAudioTrack, addMidiTrack, saveProject, openProject,
-            openKeyMappings, duplicateClip, splitClip, deleteClip, nudgeLeft, nudgeRight,
+            openKeyMappings, duplicateClip, splitClip, deleteClip, reverseClip, nudgeLeft, nudgeRight,
             playheadLeft, playheadRight, tempoUp, tempoDown, toggleKeyboardPiano,
-            octaveUp, octaveDown
+            octaveUp, octaveDown, undo, redo, openAudioSettings
         };
     }
 
@@ -61,6 +61,7 @@ namespace freequency::ui
             }
         };
         context.closePluginWindows = [this] { pluginWindows.clear(); };
+        context.pushUndo = [this] { pushUndo(); };
 
         audioEngine.setProject (&project);
         audioEngine.onRecordingFinished = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
@@ -76,6 +77,7 @@ namespace freequency::ui
         };
         transportBar->onToggleMixer = [this] { toggleMixer(); };
         transportBar->onOpenSettings = [this] { openKeyMappings(); };
+        transportBar->onOpenAudioSettings = [this] { openAudioSettings(); };
         addAndMakeVisible (*transportBar);
 
         arrangeView = std::make_unique<ArrangeView> (context);
@@ -103,6 +105,7 @@ namespace freequency::ui
     {
         saveKeyMappings();
         keyMappingWindow = nullptr;
+        audioSettingsWindow = nullptr;
         audioEngine.shutdown();
         juce::Desktop::getInstance().setDefaultLookAndFeel (nullptr);
     }
@@ -168,10 +171,11 @@ namespace freequency::ui
             CommandIDs::toggleLoop, CommandIDs::toggleMetronome, CommandIDs::toggleMixerView,
             CommandIDs::addAudioTrack, CommandIDs::addMidiTrack, CommandIDs::saveProject,
             CommandIDs::openProject, CommandIDs::openKeyMappings, CommandIDs::duplicateClip,
-            CommandIDs::splitClip, CommandIDs::deleteClip, CommandIDs::nudgeLeft,
-            CommandIDs::nudgeRight, CommandIDs::playheadLeft, CommandIDs::playheadRight,
-            CommandIDs::tempoUp, CommandIDs::tempoDown, CommandIDs::toggleKeyboardPiano,
-            CommandIDs::octaveUp, CommandIDs::octaveDown });
+            CommandIDs::splitClip, CommandIDs::deleteClip, CommandIDs::reverseClip,
+            CommandIDs::nudgeLeft, CommandIDs::nudgeRight, CommandIDs::playheadLeft,
+            CommandIDs::playheadRight, CommandIDs::tempoUp, CommandIDs::tempoDown,
+            CommandIDs::toggleKeyboardPiano, CommandIDs::octaveUp, CommandIDs::octaveDown,
+            CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings });
     }
 
     void MainComponent::getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& r)
@@ -201,8 +205,12 @@ namespace freequency::ui
             case CommandIDs::duplicateClip:   r.setInfo ("Duplicate Clip", "", ed, 0); r.addDefaultKeypress ('d', ModifierKeys::commandModifier); break;
             case CommandIDs::splitClip:       r.setInfo ("Split Clip at Playhead", "", ed, 0); r.addDefaultKeypress ('e', ModifierKeys::commandModifier); break;
             case CommandIDs::deleteClip:      r.setInfo ("Delete Clip", "", ed, 0); r.addDefaultKeypress (KeyPress::deleteKey, 0); r.addDefaultKeypress (KeyPress::backspaceKey, 0); break;
+            case CommandIDs::reverseClip:     r.setInfo ("Reverse Audio Clip", "", ed, 0); r.addDefaultKeypress ('r', ModifierKeys::commandModifier); break;
             case CommandIDs::nudgeLeft:       r.setInfo ("Nudge Clip Left", "", ed, 0); r.addDefaultKeypress (KeyPress::leftKey, ModifierKeys::commandModifier); break;
             case CommandIDs::nudgeRight:      r.setInfo ("Nudge Clip Right", "", ed, 0); r.addDefaultKeypress (KeyPress::rightKey, ModifierKeys::commandModifier); break;
+            case CommandIDs::undo:            r.setInfo ("Undo", "", ed, 0); r.addDefaultKeypress ('z', ModifierKeys::commandModifier); break;
+            case CommandIDs::redo:            r.setInfo ("Redo", "", ed, 0); r.addDefaultKeypress ('z', ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
+            case CommandIDs::openAudioSettings: r.setInfo ("Audio Settings…", "Choose device / sample rate / buffer", vw, 0); r.addDefaultKeypress (KeyPress::F1Key, 0); break;
 
             case CommandIDs::toggleKeyboardPiano: r.setInfo ("Computer-Keyboard Piano", "Play instruments via QWERTY", in, 0); r.addDefaultKeypress (KeyPress::tabKey, 0); break;
             case CommandIDs::octaveUp:        r.setInfo ("Piano Octave +", "", in, 0); r.addDefaultKeypress ('x', 0); break;
@@ -228,8 +236,8 @@ namespace freequency::ui
             case CommandIDs::tempoDown:       changeTempo (-1.0); break;
 
             case CommandIDs::toggleMixerView: toggleMixer(); break;
-            case CommandIDs::addAudioTrack:   project.getTimeline().addAudioTrack(); afterTrackChange(); break;
-            case CommandIDs::addMidiTrack:    project.getTimeline().addMidiTrack();  afterTrackChange(); break;
+            case CommandIDs::addAudioTrack:   pushUndo(); project.getTimeline().addAudioTrack(); afterTrackChange(); break;
+            case CommandIDs::addMidiTrack:    pushUndo(); project.getTimeline().addMidiTrack();  afterTrackChange(); break;
             case CommandIDs::saveProject:     saveProjectAs(); break;
             case CommandIDs::openProject:     openProjectDialog(); break;
             case CommandIDs::openKeyMappings: openKeyMappings(); break;
@@ -237,8 +245,12 @@ namespace freequency::ui
             case CommandIDs::duplicateClip:   duplicateSelectedClip(); break;
             case CommandIDs::splitClip:       splitSelectedClipAtPlayhead(); break;
             case CommandIDs::deleteClip:      deleteSelectedClip(); break;
+            case CommandIDs::reverseClip:     reverseSelectedClip(); break;
             case CommandIDs::nudgeLeft:       nudgeSelectedClip (-1); break;
             case CommandIDs::nudgeRight:      nudgeSelectedClip (1); break;
+            case CommandIDs::undo:            performUndo(); break;
+            case CommandIDs::redo:            performRedo(); break;
+            case CommandIDs::openAudioSettings: openAudioSettings(); break;
 
             case CommandIDs::toggleKeyboardPiano: pianoEnabled = ! pianoEnabled; if (! pianoEnabled) allPianoNotesOff(); break;
             case CommandIDs::octaveUp:        allPianoNotesOff(); pianoOctave = juce::jmin (9, pianoOctave + 1); break;
@@ -349,11 +361,77 @@ namespace freequency::ui
         keyMappingWindow->toFront (true);
     }
 
+    void MainComponent::reverseSelectedClip()
+    {
+        auto* clip = dynamic_cast<models::AudioClip*> (context.selectedClip);
+        if (clip == nullptr) return;
+        pushUndo();
+        clip->reversed = ! clip->reversed;
+        afterClipChange();
+    }
+
+    void MainComponent::openAudioSettings()
+    {
+        if (audioSettingsWindow == nullptr)
+        {
+            audioSettingsWindow = std::make_unique<juce::DocumentWindow> (
+                "FREEQUENCY — Audio Settings",
+                juce::Colour (FreequencyLookAndFeel::panel), juce::DocumentWindow::closeButton);
+
+            // 0..2 inputs (recording), 2 outputs; full device/rate/buffer control.
+            auto* selector = new juce::AudioDeviceSelectorComponent (
+                audioEngine.getDeviceManager(), 0, 2, 2, 2, false, false, true, false);
+            selector->setSize (520, 440);
+            audioSettingsWindow->setUsingNativeTitleBar (true);
+            audioSettingsWindow->setContentOwned (selector, true);
+            audioSettingsWindow->setResizable (true, false);
+            audioSettingsWindow->centreWithSize (540, 460);
+        }
+
+        audioSettingsWindow->setVisible (true);
+        audioSettingsWindow->toFront (true);
+    }
+
+    void MainComponent::pushUndo()
+    {
+        undoStack.push_back (models::ProjectSerializer::toValueTree (project));
+        if ((int) undoStack.size() > maxUndo)
+            undoStack.erase (undoStack.begin());
+        redoStack.clear();
+    }
+
+    void MainComponent::performUndo()
+    {
+        if (undoStack.empty()) return;
+        redoStack.push_back (models::ProjectSerializer::toValueTree (project));
+        const auto snap = undoStack.back();
+        undoStack.pop_back();
+        restoreSnapshot (snap);
+    }
+
+    void MainComponent::performRedo()
+    {
+        if (redoStack.empty()) return;
+        undoStack.push_back (models::ProjectSerializer::toValueTree (project));
+        const auto snap = redoStack.back();
+        redoStack.pop_back();
+        restoreSnapshot (snap);
+    }
+
+    void MainComponent::restoreSnapshot (const juce::ValueTree& tree)
+    {
+        models::ProjectSerializer::fromValueTree (tree, project);
+        context.selectedClip = nullptr;
+        context.selectedTrack = nullptr;
+        afterTrackChange(); // rebuild graph + arrange + mixer
+    }
+
     void MainComponent::duplicateSelectedClip()
     {
         auto* track = context.selectedTrack;
         auto* clip = context.selectedClip;
         if (track == nullptr || clip == nullptr) return;
+        pushUndo();
 
         const double len = clip->length > 0.0 ? clip->length : 2.0;
 
@@ -390,6 +468,7 @@ namespace freequency::ui
         const double len = clip->length > 0.0 ? clip->length : 2.0;
         const double pos = audioEngine.getTransport().getPositionSeconds();
         if (pos <= clip->startTime + 1.0e-4 || pos >= clip->startTime + len - 1.0e-4) return;
+        pushUndo();
 
         const double cut = pos - clip->startTime; // seconds into the clip
 
@@ -433,7 +512,7 @@ namespace freequency::ui
         auto* track = context.selectedTrack;
         auto* clip = context.selectedClip;
         if (track == nullptr || clip == nullptr) return;
-
+        pushUndo();
         track->removeClip (clip);
         context.selectedClip = nullptr;
         afterClipChange();
@@ -443,6 +522,7 @@ namespace freequency::ui
     {
         auto* clip = context.selectedClip;
         if (clip == nullptr) return;
+        pushUndo();
 
         const auto& tl = project.getTimeline();
         const double beat = 60.0 / juce::jmax (1.0, tl.getTempoBpm());

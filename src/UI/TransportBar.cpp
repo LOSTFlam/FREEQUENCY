@@ -109,6 +109,7 @@ namespace freequency::ui
         addAndMakeVisible (addAudioButton);
         addAudioButton.onClick = [this]
         {
+            if (context.pushUndo) context.pushUndo();
             context.project.getTimeline().addAudioTrack();
             context.engine.rebuildGraph();
             if (onProjectStructureChanged) onProjectStructureChanged();
@@ -117,6 +118,7 @@ namespace freequency::ui
         addAndMakeVisible (addMidiButton);
         addMidiButton.onClick = [this]
         {
+            if (context.pushUndo) context.pushUndo();
             context.project.getTimeline().addMidiTrack();
             context.engine.rebuildGraph();
             if (onProjectStructureChanged) onProjectStructureChanged();
@@ -128,6 +130,9 @@ namespace freequency::ui
 
         addAndMakeVisible (keysButton);
         keysButton.onClick = [this] { if (onOpenSettings) onOpenSettings(); };
+
+        addAndMakeVisible (audioButton);
+        audioButton.onClick = [this] { if (onOpenAudioSettings) onOpenAudioSettings(); };
 
         addAndMakeVisible (saveButton);
         saveButton.onClick = [this]
@@ -329,8 +334,9 @@ namespace freequency::ui
         button (addMidiButton, 64);
         button (mixerButton, 58);
         button (limiterButton, 44);
-        button (saveButton, 52);
-        button (openButton, 52);
-        button (keysButton, 52);
+        button (saveButton, 50);
+        button (openButton, 50);
+        button (keysButton, 50);
+        button (audioButton, 56);
     }
 } // namespace freequency::ui

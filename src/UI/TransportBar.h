@@ -35,6 +35,9 @@ namespace freequency::ui
         /** Called when the user opens the keyboard-shortcuts editor. */
         std::function<void()> onOpenSettings;
 
+        /** Called when the user opens the audio device settings. */
+        std::function<void()> onOpenAudioSettings;
+
         void paint (juce::Graphics&) override;
         void resized() override;
 
@@ -61,6 +64,7 @@ namespace freequency::ui
         juce::TextButton saveButton     { "Save" };
         juce::TextButton openButton     { "Open" };
         juce::TextButton keysButton     { "Keys" };
+        juce::TextButton audioButton    { "Audio" };
 
         std::unique_ptr<juce::FileChooser> fileChooser;
 

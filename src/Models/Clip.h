@@ -92,6 +92,9 @@ namespace freequency::models
 
         /** Per-clip linear gain applied on top of the track fader. */
         float gain { 1.0f };
+
+        /** Play the clip's audio backwards. */
+        bool reversed { false };
     };
 
     /**

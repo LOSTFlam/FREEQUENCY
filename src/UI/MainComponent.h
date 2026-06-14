@@ -61,9 +61,18 @@ namespace freequency::ui
         void duplicateSelectedClip();
         void splitSelectedClipAtPlayhead();
         void deleteSelectedClip();
+        void reverseSelectedClip();
         void nudgeSelectedClip (int direction);
         void movePlayheadByBar (int direction);
         void changeTempo (double delta);
+
+        void openAudioSettings();
+
+        // Undo / redo via whole-project ValueTree snapshots.
+        void pushUndo();
+        void performUndo();
+        void performRedo();
+        void restoreSnapshot (const juce::ValueTree&);
 
         // Computer-keyboard piano.
         [[nodiscard]] models::MidiTrack* pianoTargetTrack() const;
@@ -86,7 +95,11 @@ namespace freequency::ui
 
         juce::ApplicationCommandManager commandManager;
         std::unique_ptr<juce::DocumentWindow> keyMappingWindow;
+        std::unique_ptr<juce::DocumentWindow> audioSettingsWindow;
         std::unique_ptr<juce::FileChooser> fileChooser;
+
+        std::vector<juce::ValueTree> undoStack, redoStack;
+        static constexpr int maxUndo = 64;
 
         // Computer-keyboard piano state.
         bool pianoEnabled { false };
