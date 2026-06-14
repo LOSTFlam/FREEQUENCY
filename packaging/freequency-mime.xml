@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Registers the .freq project document type with the desktop so files open
+     in FREEQUENCY when double-clicked. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-freequency-project">
+    <comment>FREEQUENCY project</comment>
+    <glob pattern="*.freq"/>
+    <icon name="freequency"/>
+  </mime-type>
+</mime-info>

@@ -2,6 +2,7 @@
 
 #include "Models/MidiTrack.h"
 #include "Models/AudioTrack.h"
+#include "Models/ProjectSerializer.h"
 
 namespace freequency::ui
 {
@@ -98,6 +99,17 @@ namespace freequency::ui
 
         auto* audio = timeline.addAudioTrack();
         audio->name = "Audio";
+    }
+
+    bool MainComponent::openProjectFile (const juce::File& file)
+    {
+        if (! models::ProjectSerializer::loadFromFile (project, file))
+            return false;
+
+        audioEngine.rebuildGraph();
+        if (arrangeView) arrangeView->rebuildTracks();
+        if (mixerView)   mixerView->rebuild();
+        return true;
     }
 
     void MainComponent::toggleMixer()

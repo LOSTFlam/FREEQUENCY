@@ -40,6 +40,12 @@ namespace freequency
             }
 
             mainWindow = std::make_unique<MainWindow> (getApplicationName());
+            openFileFromCommandLine (commandLine);
+        }
+
+        void anotherInstanceStarted (const juce::String& commandLine) override
+        {
+            openFileFromCommandLine (commandLine);
         }
 
         void shutdown() override
@@ -50,6 +56,22 @@ namespace freequency
         void systemRequestedQuit() override { quit(); }
 
     private:
+        /** Opens a .freq file passed on the command line (e.g. by double-clicking
+            an associated document). */
+        void openFileFromCommandLine (const juce::String& commandLine)
+        {
+            if (mainWindow == nullptr)
+                return;
+
+            for (const auto& arg : juce::StringArray::fromTokens (commandLine, true))
+            {
+                juce::File file (arg.unquoted());
+                if (file.existsAsFile() && file.hasFileExtension ("freq"))
+                    if (auto* mc = dynamic_cast<ui::MainComponent*> (mainWindow->getContentComponent()))
+                        mc->openProjectFile (file);
+            }
+        }
+
         /** Builds a tiny project (one MIDI note on the built-in synth) and renders
             it offline, printing the peak level so a non-zero result proves the
             signal path Transport -> MidiSource -> Synth -> strip -> master works.

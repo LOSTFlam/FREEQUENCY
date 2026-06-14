@@ -9,6 +9,12 @@ juce_add_gui_app(FREEQUENCY
     PRODUCT_NAME    "FREEQUENCY"
     COMPANY_NAME    "FREEQUENCY"
     VERSION         ${PROJECT_VERSION}
+    BUNDLE_ID       "com.freequency.app"
+    ICON_BIG        "${CMAKE_SOURCE_DIR}/assets/icon.png"
+    # Associate the custom project document type (.freq) with the app. On macOS
+    # this writes the CFBundleDocumentTypes into Info.plist; the Linux/Windows
+    # association is handled by the installer/launcher scripts.
+    DOCUMENT_EXTENSIONS       freq
     # A console is invaluable while bringing up the audio engine.
     NEEDS_CURL                FALSE
     NEEDS_WEB_BROWSER         FALSE)

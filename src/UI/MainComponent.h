@@ -29,6 +29,9 @@ namespace freequency::ui
         MainComponent();
         ~MainComponent() override;
 
+        /** Loads a .freq project file, rebuilding the engine graph and views. */
+        bool openProjectFile (const juce::File&);
+
         void paint (juce::Graphics&) override;
         void resized() override;
         bool keyPressed (const juce::KeyPress&) override;
