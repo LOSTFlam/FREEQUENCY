@@ -37,7 +37,13 @@ target_sources(OmniDAW PRIVATE
     Models/Mixer.cpp
     Models/Project.cpp
 
-    # ── UI (intentionally minimal in Phase 1) ─────────────────────────────────
+    # ── UI ─────────────────────────────────────────────────────────────────────
+    UI/OmniLookAndFeel.cpp
+    UI/TransportBar.cpp
+    UI/TrackHeaderComponent.cpp
+    UI/TrackLaneComponent.cpp
+    UI/TimelineRuler.cpp
+    UI/ArrangeView.cpp
     UI/MainComponent.cpp)
 
 # Let every source file include headers relative to src/ (e.g. "Models/Track.h").

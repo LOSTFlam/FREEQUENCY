@@ -1,60 +1,110 @@
 #include "UI/MainComponent.h"
 
+#include "Models/MidiTrack.h"
+#include "Models/AudioTrack.h"
+
 namespace omnidaw::ui
 {
+    namespace
+    {
+        // Drop a simple musical pattern into a MIDI clip so the project is
+        // audible/visible the moment the app opens.
+        void fillPattern (models::MidiClip& clip, double tempoBpm, int bars,
+                          const int* notes, int numNotes)
+        {
+            const double beat = 60.0 / juce::jmax (1.0, tempoBpm);
+            clip.length = beat * 4.0 * bars;
+
+            for (int bar = 0; bar < bars; ++bar)
+            {
+                for (int i = 0; i < numNotes; ++i)
+                {
+                    const double t = (bar * 4.0 + i * (4.0 / numNotes)) * beat;
+                    clip.sequence.addEvent (juce::MidiMessage::noteOn (1, notes[i], (juce::uint8) 96), t);
+                    clip.sequence.addEvent (juce::MidiMessage::noteOff (1, notes[i]), t + beat * 0.45);
+                }
+            }
+
+            clip.sequence.updateMatchedPairs();
+        }
+    } // namespace
+
     MainComponent::MainComponent()
     {
-        // Build a tiny demo document so the engine has something to instantiate
-        // graph nodes for. This proves the model -> engine path end to end.
-        project = std::make_unique<models::Project>();
+        juce::Desktop::getInstance().setDefaultLookAndFeel (&lookAndFeel);
 
-        auto& timeline = project->getTimeline();
-        timeline.addAudioTrack()->name = "Drums";
-        timeline.addMidiTrack()->name = "Bass";
-        timeline.addAudioTrack()->name = "Vocals";
+        buildDemoProject();
 
-        audioEngine = std::make_unique<engine::AudioEngine>();
-        audioEngine->setProject (project.get());
+        audioEngine.setProject (&project);
+        const auto error = audioEngine.initialise();
+        engineStatus = error.isEmpty() ? "Engine running" : ("Engine idle: " + error);
 
-        const auto error = audioEngine->initialise();
-        engineStatus = error.isEmpty()
-                           ? "Audio engine running."
-                           : ("Audio engine idle (no device): " + error);
+        transportBar = std::make_unique<TransportBar> (context);
+        transportBar->onProjectStructureChanged = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
+        transportBar->onToggleMixer = [this] { toggleMixer(); };
+        addAndMakeVisible (*transportBar);
 
-        setSize (900, 560);
+        arrangeView = std::make_unique<ArrangeView> (context);
+        addAndMakeVisible (*arrangeView);
+
+        setSize (1280, 760);
     }
 
     MainComponent::~MainComponent()
     {
-        // Tear down audio before the model it references disappears.
-        if (audioEngine != nullptr)
-            audioEngine->shutdown();
+        audioEngine.shutdown();
+        juce::Desktop::getInstance().setDefaultLookAndFeel (nullptr);
+    }
+
+    void MainComponent::buildDemoProject()
+    {
+        project.name = "Demo Session";
+        auto& timeline = project.getTimeline();
+        timeline.setTempoBpm (120.0);
+
+        auto* lead = timeline.addMidiTrack();
+        lead->name = "Lead";
+        {
+            auto* clip = lead->addClip();
+            clip->name = "Melody";
+            clip->startTime = 0.0;
+            const int notes[] = { 72, 76, 79, 76, 74, 77, 81, 79 };
+            fillPattern (*clip, 120.0, 2, notes, 8);
+        }
+
+        auto* bass = timeline.addMidiTrack();
+        bass->name = "Bass";
+        {
+            auto* clip = bass->addClip();
+            clip->name = "Bassline";
+            clip->startTime = 0.0;
+            const int notes[] = { 36, 36, 43, 36 };
+            fillPattern (*clip, 120.0, 2, notes, 4);
+        }
+
+        auto* audio = timeline.addAudioTrack();
+        audio->name = "Audio";
+    }
+
+    void MainComponent::toggleMixer()
+    {
+        // Mixer is implemented in Phase 4; the toggle is wired then.
+        mixerVisible = ! mixerVisible;
     }
 
     void MainComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (0xff1b1d23));
-
-        g.setColour (juce::Colours::white);
-        g.setFont (juce::FontOptions (28.0f, juce::Font::bold));
-        g.drawText ("OmniDAW", getLocalBounds().removeFromTop (90),
-                    juce::Justification::centred, false);
-
-        g.setColour (juce::Colours::lightgrey);
-        g.setFont (juce::FontOptions (15.0f));
-        g.drawText ("Phase 1 \xe2\x80\x94 Engine Core (no UI yet)",
-                    getLocalBounds().withTrimmedTop (70).removeFromTop (30),
-                    juce::Justification::centred, false);
-
-        g.setColour (juce::Colours::aquamarine);
-        g.setFont (juce::FontOptions (13.0f));
-        g.drawText (engineStatus,
-                    getLocalBounds().withTrimmedTop (110).removeFromTop (30),
-                    juce::Justification::centred, false);
+        g.fillAll (juce::Colour (OmniLookAndFeel::background));
     }
 
     void MainComponent::resized()
     {
-        // No child components in Phase 1.
+        auto r = getLocalBounds();
+
+        if (transportBar != nullptr)
+            transportBar->setBounds (r.removeFromTop (56));
+
+        if (arrangeView != nullptr)
+            arrangeView->setBounds (r);
     }
 } // namespace omnidaw::ui

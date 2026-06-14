@@ -337,6 +337,13 @@ namespace omnidaw::engine
 
         auto& timeline = currentProject->getTimeline();
 
+        // Solo is exclusive: if ANY track is soloed, every non-soloed track is
+        // silenced. Computed once here so the audio thread just sees a mute flag.
+        bool anySolo = false;
+        for (int i = 0; i < timeline.getNumTracks(); ++i)
+            if (auto* track = timeline.getTrack (i))
+                anySolo = anySolo || track->isSoloed();
+
         for (int i = 0; i < timeline.getNumTracks(); ++i)
         {
             auto* track = timeline.getTrack (i);
@@ -349,9 +356,10 @@ namespace omnidaw::engine
 
             if (auto* strip = getStripProcessor (it->second.strip))
             {
+                const bool silencedBySolo = anySolo && ! track->isSoloed();
                 strip->setGain (track->getVolume());
                 strip->setPan (track->getPan());
-                strip->setMuted (track->isMuted());
+                strip->setMuted (track->isMuted() || silencedBySolo);
             }
         }
 
