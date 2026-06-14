@@ -41,7 +41,11 @@ namespace omnidaw::ui
         engineStatus = error.isEmpty() ? "Engine running" : ("Engine idle: " + error);
 
         transportBar = std::make_unique<TransportBar> (context);
-        transportBar->onProjectStructureChanged = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
+        transportBar->onProjectStructureChanged = [this]
+        {
+            if (arrangeView) arrangeView->rebuildTracks();
+            if (mixerView)   mixerView->rebuild();
+        };
         transportBar->onToggleMixer = [this] { toggleMixer(); };
         addAndMakeVisible (*transportBar);
 

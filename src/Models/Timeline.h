@@ -25,6 +25,9 @@ namespace omnidaw::models
         /** Removes a track by id. Returns true if a track was removed. */
         bool removeTrack (const ObjectId& trackId);
 
+        /** Removes all tracks (used when loading a project). */
+        void clear() { tracks.clear(); }
+
         [[nodiscard]] int    getNumTracks() const noexcept { return tracks.size(); }
         [[nodiscard]] Track* getTrack (int index) const noexcept { return tracks[index]; }
         [[nodiscard]] Track* findTrack (const ObjectId& trackId) const noexcept;

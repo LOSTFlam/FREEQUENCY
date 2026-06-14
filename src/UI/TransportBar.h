@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
 
 namespace omnidaw::ui
 {
@@ -46,6 +47,10 @@ namespace omnidaw::ui
         juce::TextButton addAudioButton { "+ Audio" };
         juce::TextButton addMidiButton  { "+ MIDI" };
         juce::TextButton mixerButton    { "Mixer" };
+        juce::TextButton saveButton     { "Save" };
+        juce::TextButton openButton     { "Open" };
+
+        std::unique_ptr<juce::FileChooser> fileChooser;
 
         juce::Label positionLabel;
         juce::Label tempoLabel;

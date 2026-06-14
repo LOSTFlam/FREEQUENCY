@@ -1,6 +1,8 @@
 #include "UI/TransportBar.h"
 #include "UI/OmniLookAndFeel.h"
 
+#include "Models/ProjectSerializer.h"
+
 namespace omnidaw::ui
 {
     TransportBar::TransportBar (UIContext& ctx)
@@ -86,6 +88,48 @@ namespace omnidaw::ui
         addAndMakeVisible (mixerButton);
         mixerButton.setClickingTogglesState (true);
         mixerButton.onClick = [this] { if (onToggleMixer) onToggleMixer(); };
+
+        addAndMakeVisible (saveButton);
+        saveButton.onClick = [this]
+        {
+            fileChooser = std::make_unique<juce::FileChooser> (
+                "Save project", juce::File(), "*.omni");
+            fileChooser->launchAsync (
+                juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+                [this] (const juce::FileChooser& fc)
+                {
+                    auto file = fc.getResult();
+                    if (file == juce::File())
+                        return;
+                    if (file.getFileExtension().isEmpty())
+                        file = file.withFileExtension ("omni");
+                    models::ProjectSerializer::saveToFile (context.project, file);
+                });
+        };
+
+        addAndMakeVisible (openButton);
+        openButton.onClick = [this]
+        {
+            fileChooser = std::make_unique<juce::FileChooser> (
+                "Open project", juce::File(), "*.omni");
+            fileChooser->launchAsync (
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                [this] (const juce::FileChooser& fc)
+                {
+                    const auto file = fc.getResult();
+                    if (! file.existsAsFile())
+                        return;
+
+                    if (models::ProjectSerializer::loadFromFile (context.project, file))
+                    {
+                        context.engine.rebuildGraph();
+                        tempoLabel.setText (juce::String (context.project.getTimeline().getTempoBpm(), 1),
+                                            juce::dontSendNotification);
+                        context.engine.getTransport().setTempo (context.project.getTimeline().getTempoBpm());
+                        if (onProjectStructureChanged) onProjectStructureChanged();
+                    }
+                });
+        };
 
         addAndMakeVisible (positionLabel);
         positionLabel.setJustificationType (juce::Justification::centred);
@@ -191,9 +235,12 @@ namespace omnidaw::ui
         tempoLabel.setBounds (r.removeFromLeft (60));
 
         r.removeFromLeft (14);
-        button (addAudioButton, 80);
-        button (addMidiButton, 80);
-        button (mixerButton, 70);
+        button (addAudioButton, 76);
+        button (addMidiButton, 72);
+        button (mixerButton, 64);
+        r.removeFromLeft (8);
+        button (saveButton, 58);
+        button (openButton, 58);
 
         // Right area is reserved for the meter (painted in paint()).
     }

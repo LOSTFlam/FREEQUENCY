@@ -59,6 +59,9 @@ namespace omnidaw::models
         Bus* addSubmixBus (const juce::String& name);
         Bus* addFxBus (const juce::String& name);
 
+        /** Removes all submix/FX buses, keeping the master (for project load). */
+        void clearNonMasterBuses();
+
         [[nodiscard]] int  getNumBuses() const noexcept { return buses.size(); }
         [[nodiscard]] Bus* getBus (int index) const noexcept { return buses[index]; }
 

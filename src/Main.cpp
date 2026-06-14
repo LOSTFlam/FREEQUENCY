@@ -1,6 +1,7 @@
 #include "UI/MainComponent.h"
 #include "Models/Project.h"
 #include "Models/MidiTrack.h"
+#include "Models/ProjectSerializer.h"
 #include "Engine/AudioEngine.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -75,6 +76,25 @@ namespace omnidaw
             std::cout << "OmniDAW self-test: rendered peak = " << peak
                       << (peak > 0.0001f ? "  [PASS]" : "  [FAIL: silence]")
                       << std::endl;
+
+            // Persistence round-trip: save -> load -> render must match.
+            {
+                const auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                     .getChildFile ("omnidaw_selftest.omni");
+                models::ProjectSerializer::saveToFile (project, tmp);
+
+                models::Project loaded;
+                const bool ok = models::ProjectSerializer::loadFromFile (loaded, tmp);
+
+                engine::AudioEngine engine2;
+                engine2.setProject (&loaded);
+                const float peak2 = engine2.renderOfflinePeak (44100.0, 1.0);
+                tmp.deleteFile();
+
+                const bool match = ok && std::abs (peak2 - peak) < 0.02f;
+                std::cout << "OmniDAW self-test: persistence reload peak = " << peak2
+                          << (match ? "  [PASS]" : "  [FAIL]") << std::endl;
+            }
 
             // Automation check: a volume curve pinned to 0 must silence the track,
             // proving automation overrides the fader on the audio thread.

@@ -36,6 +36,7 @@ target_sources(OmniDAW PRIVATE
     Models/Timeline.cpp
     Models/Mixer.cpp
     Models/Project.cpp
+    Models/ProjectSerializer.cpp
 
     # ── UI ─────────────────────────────────────────────────────────────────────
     UI/OmniLookAndFeel.cpp
