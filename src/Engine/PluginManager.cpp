@@ -21,6 +21,14 @@ namespace freequency::engine
        #if JUCE_PLUGINHOST_AU && JUCE_MAC
         formatManager.addFormat (std::make_unique<juce::AudioUnitPluginFormat>());
        #endif
+
+        // CLAP — opt-in (configure with -DFREEQUENCY_ENABLE_CLAP=ON and provide a
+        // CLAP host bridge that exposes a juce::AudioPluginFormat). The rest of the
+        // host (scan / instantiate / insert chain) needs no changes because plugins
+        // are referenced by identifier string.
+       #if FREEQUENCY_HAS_CLAP
+        formatManager.addFormat (std::make_unique<freequency::CLAPPluginFormat>());
+       #endif
     }
 
     int PluginManager::scanDefaultLocations()
