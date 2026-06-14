@@ -111,6 +111,7 @@ namespace omnidaw::engine
     {
         graph.clear();
         trackChains.clear();
+        busNodes.clear();
 
         // CRITICAL: establish the graph's IO channel count *before* adding and
         // connecting the IO node. An AudioGraphIOProcessor derives its channel
@@ -127,6 +128,27 @@ namespace omnidaw::engine
         masterNode = graph.addNode (std::make_unique<TrackProcessor> ("Master"));
 
         connectStereo (masterNode->nodeID, audioOutputNode->nodeID);
+    }
+
+    void AudioEngine::buildBuses()
+    {
+        if (currentProject == nullptr)
+            return;
+
+        // Each submix/FX bus becomes a TrackProcessor strip feeding the master.
+        // (The master itself is created in buildBaseGraph.)
+        auto& mixer = currentProject->getMixer();
+
+        for (int i = 0; i < mixer.getNumBuses(); ++i)
+        {
+            auto* bus = mixer.getBus (i);
+            if (bus == nullptr || bus->getKind() == models::Bus::Kind::master)
+                continue;
+
+            auto busNode = graph.addNode (std::make_unique<TrackProcessor> (bus->name));
+            connectStereo (busNode->nodeID, masterNode->nodeID);
+            busNodes[bus->getId().toDashedString().toStdString()] = busNode->nodeID;
+        }
     }
 
     void AudioEngine::connectStereo (NodeID source, NodeID destination)
@@ -213,6 +235,28 @@ namespace omnidaw::engine
 
         connectStereo (lastAudioNode, chain.strip);
 
+        // Sends: post-fader taps from the strip to destination buses. Each send is
+        // its own gain node (a TrackProcessor used purely as a gain stage) so its
+        // level is independent of the channel fader.
+        for (int s = 0; s < track.getNumSends(); ++s)
+        {
+            auto* send = track.getSend (s);
+            if (send == nullptr)
+                continue;
+
+            const auto busIt = busNodes.find (send->destBusId.toStdString());
+            if (busIt == busNodes.end())
+            {
+                chain.sends.push_back ({}); // keep index alignment with model
+                continue;
+            }
+
+            auto sendNode = graph.addNode (std::make_unique<TrackProcessor> ("Send"));
+            connectStereo (chain.strip, sendNode->nodeID);
+            connectStereo (sendNode->nodeID, busIt->second);
+            chain.sends.push_back (sendNode->nodeID);
+        }
+
         trackChains[track.getId().toDashedString().toStdString()] = chain;
     }
 
@@ -234,6 +278,8 @@ namespace omnidaw::engine
 
         if (currentProject != nullptr)
         {
+            buildBuses();
+
             auto& timeline = currentProject->getTimeline();
 
             for (int i = 0; i < timeline.getNumTracks(); ++i)
@@ -361,10 +407,58 @@ namespace omnidaw::engine
                 strip->setPan (track->getPan());
                 strip->setMuted (track->isMuted() || silencedBySolo);
             }
+
+            // Send-tap levels (aligned by index with the model's sends).
+            const auto& chain = it->second;
+            for (int s = 0; s < track->getNumSends() && s < (int) chain.sends.size(); ++s)
+                if (auto* send = track->getSend (s))
+                    if (auto* sendProc = getStripProcessor (chain.sends[(size_t) s]))
+                        sendProc->setGain (send->level.load (std::memory_order_relaxed));
+        }
+
+        // Bus + master volumes.
+        auto& mixer = currentProject->getMixer();
+        for (int i = 0; i < mixer.getNumBuses(); ++i)
+        {
+            auto* bus = mixer.getBus (i);
+            if (bus == nullptr || bus->getKind() == models::Bus::Kind::master)
+                continue;
+
+            const auto busIt = busNodes.find (bus->getId().toDashedString().toStdString());
+            if (busIt != busNodes.end())
+                if (auto* busProc = getStripProcessor (busIt->second))
+                    busProc->setGain (bus->getVolume());
         }
 
         if (auto* master = getStripProcessor (masterNode->nodeID))
-            master->setGain (currentProject->getMixer().getMasterBus().getVolume());
+            master->setGain (mixer.getMasterBus().getVolume());
+    }
+
+    float AudioEngine::getTrackLevel (const models::Track& track) const noexcept
+    {
+        const auto it = trackChains.find (track.getId().toDashedString().toStdString());
+        if (it == trackChains.end())
+            return 0.0f;
+
+        if (auto* strip = getStripProcessor (it->second.strip))
+            return strip->getOutputLevel();
+
+        return 0.0f;
+    }
+
+    float AudioEngine::getBusLevel (const models::Bus& bus) const noexcept
+    {
+        if (bus.getKind() == models::Bus::Kind::master)
+            return getMasterLevel();
+
+        const auto it = busNodes.find (bus.getId().toDashedString().toStdString());
+        if (it == busNodes.end())
+            return 0.0f;
+
+        if (auto* strip = getStripProcessor (it->second))
+            return strip->getOutputLevel();
+
+        return 0.0f;
     }
 
     // ── Node lookup helpers ─────────────────────────────────────────────────────

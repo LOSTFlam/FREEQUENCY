@@ -6,6 +6,7 @@
 #include "UI/OmniLookAndFeel.h"
 #include "UI/TransportBar.h"
 #include "UI/ArrangeView.h"
+#include "UI/MixerView.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -42,6 +43,7 @@ namespace omnidaw::ui
 
         std::unique_ptr<TransportBar> transportBar;
         std::unique_ptr<ArrangeView> arrangeView;
+        std::unique_ptr<MixerView> mixerView;
 
         bool mixerVisible { false };
         juce::String engineStatus;

@@ -54,6 +54,12 @@ namespace omnidaw::engine
             return processedSamples.load (std::memory_order_relaxed);
         }
 
+        /** Post-fader output peak of the last block (0..1), for metering. */
+        [[nodiscard]] float getOutputLevel() const noexcept
+        {
+            return outputLevel.load (std::memory_order_relaxed);
+        }
+
         // ── juce::AudioProcessor ───────────────────────────────────────────────
         void prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock) override;
         void releaseResources() override {}
@@ -98,6 +104,7 @@ namespace omnidaw::engine
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedRightPanGain;
 
         std::atomic<juce::int64> processedSamples { 0 };
+        std::atomic<float> outputLevel { 0.0f };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackProcessor)
     };

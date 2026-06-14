@@ -75,6 +75,20 @@ namespace omnidaw::models
         // serialisable; the engine resolves them via the PluginManager.
         juce::StringArray insertPluginIdentifiers;
 
+        // ── Sends (aux routing) ─────────────────────────────────────────────────
+        /** A post-fader tap that copies this track's signal to a destination bus
+            (typically an FX/aux bus) at an independent level. */
+        struct Send
+        {
+            juce::String destBusId;          // Bus id (dashed string)
+            std::atomic<float> level { 0.0f }; // linear gain of the send tap
+        };
+
+        [[nodiscard]] int getNumSends() const noexcept { return sends.size(); }
+        [[nodiscard]] Send* getSend (int index) const noexcept { return sends[index]; }
+        Send* addSend (const juce::String& destBusId);
+        void removeSend (int index);
+
         // ── Clips ─────────────────────────────────────────────────────────────
         [[nodiscard]] int getNumClips() const noexcept { return clips.size(); }
         [[nodiscard]] Clip* getClip (int index) const noexcept { return clips[index]; }
@@ -84,6 +98,7 @@ namespace omnidaw::models
         Clip* addClipInternal (std::unique_ptr<Clip> clip);
 
         juce::OwnedArray<Clip> clips;
+        juce::OwnedArray<Send> sends;
 
     private:
         const ObjectId id;

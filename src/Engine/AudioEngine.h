@@ -79,6 +79,13 @@ namespace omnidaw::engine
 
         [[nodiscard]] juce::int64 getMasterProcessedSampleCount() const noexcept;
 
+        /** Post-fader output level (0..1) of a track's channel strip, for the
+            mixer meters. Returns 0 if the track has no live node. */
+        [[nodiscard]] float getTrackLevel (const models::Track& track) const noexcept;
+
+        /** Post-fader output level (0..1) of a bus strip, for the mixer meters. */
+        [[nodiscard]] float getBusLevel (const models::Bus& bus) const noexcept;
+
         /** Offline (non-realtime) render of the current project for `seconds`,
             starting from timeline position 0 with the transport playing. Returns
             the peak magnitude of the rendered output. Used by the headless
@@ -111,9 +118,11 @@ namespace omnidaw::engine
             NodeID source;      // AudioClipProcessor or MidiSourceProcessor
             NodeID instrument;  // instrument node (MIDI tracks only), else invalid
             std::vector<NodeID> inserts; // insert FX nodes, in series
+            std::vector<NodeID> sends;   // send-tap gain nodes, aligned with model sends
         };
 
         void buildBaseGraph();
+        void buildBuses();
         void addTrackChain (models::Track& track);
         NodeID makeInstrumentNode (models::Track& track); // hosted plugin or built-in synth
         void connectStereo (NodeID source, NodeID destination);
@@ -137,6 +146,7 @@ namespace omnidaw::engine
         Node::Ptr masterNode;
 
         std::unordered_map<std::string, TrackChain> trackChains;
+        std::unordered_map<std::string, NodeID> busNodes; // bus id -> strip node
 
         juce::AudioBuffer<float> renderBuffer; // scratch for the device callback
         juce::MidiBuffer scratchMidi;

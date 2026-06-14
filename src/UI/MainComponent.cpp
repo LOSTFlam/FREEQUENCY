@@ -47,6 +47,9 @@ namespace omnidaw::ui
         arrangeView = std::make_unique<ArrangeView> (context);
         addAndMakeVisible (*arrangeView);
 
+        mixerView = std::make_unique<MixerView> (context);
+        addChildComponent (*mixerView); // hidden until toggled
+
         setSize (1280, 760);
     }
 
@@ -88,8 +91,13 @@ namespace omnidaw::ui
 
     void MainComponent::toggleMixer()
     {
-        // Mixer is implemented in Phase 4; the toggle is wired then.
         mixerVisible = ! mixerVisible;
+
+        if (mixerVisible && mixerView != nullptr)
+            mixerView->rebuild(); // reflect any track/routing changes
+
+        if (arrangeView != nullptr) arrangeView->setVisible (! mixerVisible);
+        if (mixerView != nullptr)   mixerView->setVisible (mixerVisible);
     }
 
     void MainComponent::paint (juce::Graphics& g)
@@ -106,5 +114,8 @@ namespace omnidaw::ui
 
         if (arrangeView != nullptr)
             arrangeView->setBounds (r);
+
+        if (mixerView != nullptr)
+            mixerView->setBounds (r);
     }
 } // namespace omnidaw::ui

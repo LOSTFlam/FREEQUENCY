@@ -31,6 +31,25 @@ namespace omnidaw::models
         sendChangeMessage();
     }
 
+    Track::Send* Track::addSend (const juce::String& destBusId)
+    {
+        auto* send = new Send();
+        send->destBusId = destBusId;
+        send->level.store (0.5f, std::memory_order_relaxed);
+        sends.add (send);
+        sendChangeMessage();
+        return send;
+    }
+
+    void Track::removeSend (int index)
+    {
+        if (index >= 0 && index < sends.size())
+        {
+            sends.remove (index);
+            sendChangeMessage();
+        }
+    }
+
     Clip* Track::addClipInternal (std::unique_ptr<Clip> clip)
     {
         auto* raw = clips.add (clip.release());

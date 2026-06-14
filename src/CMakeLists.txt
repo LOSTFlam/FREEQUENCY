@@ -44,6 +44,8 @@ target_sources(OmniDAW PRIVATE
     UI/TrackLaneComponent.cpp
     UI/TimelineRuler.cpp
     UI/ArrangeView.cpp
+    UI/ChannelStrip.cpp
+    UI/MixerView.cpp
     UI/MainComponent.cpp)
 
 # Let every source file include headers relative to src/ (e.g. "Models/Track.h").

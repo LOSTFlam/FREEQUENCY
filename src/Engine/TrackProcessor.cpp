@@ -107,5 +107,14 @@ namespace omnidaw::engine
         }
 
         processedSamples.fetch_add (numSamples, std::memory_order_relaxed);
+
+        // Post-fader peak for the mixer meters. A decaying max gives a smoother,
+        // more readable meter than a raw per-block peak.
+        float peak = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+            peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, numSamples));
+
+        const float previous = outputLevel.load (std::memory_order_relaxed) * 0.78f;
+        outputLevel.store (juce::jmax (peak, previous), std::memory_order_relaxed);
     }
 } // namespace omnidaw::engine
