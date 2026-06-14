@@ -1,0 +1,19 @@
+# Build output
+/build/
+/build-*/
+cmake-build-*/
+
+# CMake / FetchContent caches
+_deps/
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+
+# IDE
+.vscode/
+.idea/
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
