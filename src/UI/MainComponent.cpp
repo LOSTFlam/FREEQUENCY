@@ -5,8 +5,29 @@
 #include "Models/ProjectSerializer.h"
 #include "Models/Pattern.h"
 
+#include <optional>
+
 namespace freequency::ui
 {
+    namespace
+    {
+        /** DocumentWindow that fires onClosedByUser when the title-bar X is pressed. */
+        class HintsDocumentWindow final : public juce::DocumentWindow
+        {
+        public:
+            std::function<void()> onClosedByUser;
+
+            HintsDocumentWindow (const juce::String& name, juce::Colour bg, int buttons)
+                : DocumentWindow (name, bg, buttons) {}
+
+            void closeButtonPressed() override
+            {
+                if (onClosedByUser)
+                    onClosedByUser();
+                setVisible (false);
+            }
+        };
+    }
     // Command identifiers for the remappable hotkey system.
     namespace CommandIDs
     {
@@ -68,7 +89,14 @@ namespace freequency::ui
         context.openPianoRoll = [this] (models::MidiClip& mc, models::Track& tr)
         {
             pianoRoll = std::make_unique<PianoRollEditor> (context, mc, tr);
-            pianoRoll->onClose = [this] { pianoRoll = nullptr; resized(); };
+            pianoRoll->onClose = [this]
+            {
+                pianoRoll = nullptr;
+                resized();
+                guideController.showPanelClosedHint (GuideAnchor::arrangeView,
+                    "Piano roll closed",
+                    "Double-click a MIDI clip on the arrange view to open the editor again.");
+            };
             addAndMakeVisible (*pianoRoll);
             pianoRoll->setBounds (getLocalBounds().withTrimmedTop (56));
         };
@@ -90,9 +118,16 @@ namespace freequency::ui
         transportBar->onOpenAudioSettings = [this] { openAudioSettings(); };
         transportBar->onToggleBrowser = [this]
         {
+            const bool was = browserVisible;
             browserVisible = ! browserVisible;
             if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
             resized();
+            if (was && ! browserVisible)
+            {
+                guideController.showPanelClosedHint (GuideAnchor::transportBrowser,
+                    "Browser hidden",
+                    "F2 or Browse brings samples and media back on the left.");
+            }
         };
         transportBar->onOpenAppearance = [this] { openAppearance(); };
         addAndMakeVisible (*transportBar);
@@ -120,6 +155,8 @@ namespace freequency::ui
         setWantsKeyboardFocus (true);
 
         setSize (1660, 840);
+
+        setupGuideSystem();
     }
 
     MainComponent::~MainComponent()
@@ -206,13 +243,21 @@ namespace freequency::ui
 
     void MainComponent::toggleMixer()
     {
+        const bool wasVisible = mixerVisible;
         mixerVisible = ! mixerVisible;
 
         if (mixerVisible && mixerView != nullptr)
-            mixerView->rebuild(); // reflect any track/routing changes
+            mixerView->rebuild();
 
         if (arrangeView != nullptr) arrangeView->setVisible (! mixerVisible);
         if (mixerView != nullptr)   mixerView->setVisible (mixerVisible);
+
+        if (wasVisible && ! mixerVisible)
+        {
+            guideController.showPanelClosedHint (GuideAnchor::transportMixer,
+                "Back to arrange",
+                "Mixer is always one click away — B or the Mixer button.");
+        }
     }
 
     // ── ApplicationCommandTarget ────────────────────────────────────────────────
@@ -318,10 +363,19 @@ namespace freequency::ui
             case CommandIDs::redo:            performRedo(); break;
             case CommandIDs::openAudioSettings: openAudioSettings(); break;
             case CommandIDs::toggleBrowser:
+            {
+                const bool was = browserVisible;
                 browserVisible = ! browserVisible;
                 if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
                 resized();
+                if (was && ! browserVisible)
+                {
+                    guideController.showPanelClosedHint (GuideAnchor::transportBrowser,
+                        "Browser hidden",
+                        "F2 or Browse brings samples and media back on the left.");
+                }
                 break;
+            }
             case CommandIDs::openAppearance:  openAppearance(); break;
 
             case CommandIDs::toggleKeyboardPiano: pianoEnabled = ! pianoEnabled; if (! pianoEnabled) allPianoNotesOff(); break;
@@ -365,6 +419,15 @@ namespace freequency::ui
 
         if (pianoRoll != nullptr)
             pianoRoll->setBounds (r);
+
+        guideController.resizeToHost();
+    }
+
+    void MainComponent::mouseDown (const juce::MouseEvent& e)
+    {
+        if (guideController.handlePlacementClick (e.getPosition()))
+            return;
+        grabKeyboardFocus();
     }
 
     // ── Command actions ─────────────────────────────────────────────────────────
@@ -437,16 +500,23 @@ namespace freequency::ui
     {
         if (keyMappingWindow == nullptr)
         {
-            keyMappingWindow = std::make_unique<juce::DocumentWindow> (
+            auto* win = new HintsDocumentWindow (
                 "FREEQUENCY — Keyboard Shortcuts",
                 theme().panel, juce::DocumentWindow::closeButton);
+            win->onClosedByUser = [this]
+            {
+                guideController.showPanelClosedHint (GuideAnchor::transportKeys,
+                    "Shortcuts live here",
+                    "Press Keys or Cmd+, anytime to remap hotkeys.");
+            };
 
             auto* editor = new juce::KeyMappingEditorComponent (*commandManager.getKeyMappings(), true);
             editor->setSize (620, 560);
-            keyMappingWindow->setUsingNativeTitleBar (true);
-            keyMappingWindow->setContentOwned (editor, true);
-            keyMappingWindow->setResizable (true, false);
-            keyMappingWindow->centreWithSize (640, 580);
+            win->setUsingNativeTitleBar (true);
+            win->setContentOwned (editor, true);
+            win->setResizable (true, false);
+            win->centreWithSize (640, 580);
+            keyMappingWindow.reset (win);
         }
 
         keyMappingWindow->setVisible (true);
@@ -478,16 +548,43 @@ namespace freequency::ui
     {
         if (appearanceWindow == nullptr)
         {
-            appearanceWindow = std::make_unique<juce::DocumentWindow> (
+            auto* win = new HintsDocumentWindow (
                 "FREEQUENCY — Appearance", theme().panel, juce::DocumentWindow::closeButton);
+            win->onClosedByUser = [this]
+            {
+                guideController.showPanelClosedHint (GuideAnchor::transportTheme,
+                    "Themes & coach marks",
+                    "F3 reopens Appearance — place up to three custom pins anywhere.");
+            };
 
             auto* panel = new AppearancePanel();
+            panel->setGuideSettings (guideController.settings());
             panel->onPick = [this] (const Theme& t) { applyThemeAndRefresh (t); };
-            panel->setSize (320, 24 + themePresets().size() * 40 + 24);
-            appearanceWindow->setUsingNativeTitleBar (true);
-            appearanceWindow->setContentOwned (panel, true);
-            appearanceWindow->centreWithSize (340, panel->getHeight() + 30);
+            panel->onGuideSettingsChanged = [this] (const GuideSettings& s)
+            {
+                guideController.settings() = s;
+                guideController.applySettings();
+                guideController.save();
+            };
+            panel->onReplayTour = [this] { guideController.replayTour(); };
+            panel->onPlacePin = [this] (int idx)
+            {
+                appearanceWindow->setVisible (false);
+                guideController.setPinPlacementMode (idx, true);
+            };
+            panel->onPreviewPin = [this] (int idx) { guideController.showCustomPin (idx); };
+
+            panel->setSize (340, panel->preferredHeight());
+            win->setUsingNativeTitleBar (true);
+            win->setContentOwned (panel, true);
+            win->centreWithSize (360, panel->getHeight() + 30);
+            appearanceWindow.reset (win);
         }
+        else if (auto* panel = dynamic_cast<AppearancePanel*> (appearanceWindow->getContentComponent()))
+        {
+            panel->setGuideSettings (guideController.settings());
+        }
+
         appearanceWindow->setVisible (true);
         appearanceWindow->toFront (true);
     }
@@ -496,18 +593,24 @@ namespace freequency::ui
     {
         if (audioSettingsWindow == nullptr)
         {
-            audioSettingsWindow = std::make_unique<juce::DocumentWindow> (
+            auto* win = new HintsDocumentWindow (
                 "FREEQUENCY — Audio Settings",
                 theme().panel, juce::DocumentWindow::closeButton);
+            win->onClosedByUser = [this]
+            {
+                guideController.showPanelClosedHint (GuideAnchor::transportAudio,
+                    "Audio settings",
+                    "F1 or the Audio button opens device, buffer and sample-rate controls.");
+            };
 
-            // 0..2 inputs (recording), 2 outputs; full device/rate/buffer control.
             auto* selector = new juce::AudioDeviceSelectorComponent (
                 audioEngine.getDeviceManager(), 0, 2, 2, 2, false, false, true, false);
             selector->setSize (520, 440);
-            audioSettingsWindow->setUsingNativeTitleBar (true);
-            audioSettingsWindow->setContentOwned (selector, true);
-            audioSettingsWindow->setResizable (true, false);
-            audioSettingsWindow->centreWithSize (540, 460);
+            win->setUsingNativeTitleBar (true);
+            win->setContentOwned (selector, true);
+            win->setResizable (true, false);
+            win->centreWithSize (540, 460);
+            audioSettingsWindow.reset (win);
         }
 
         audioSettingsWindow->setVisible (true);
@@ -783,6 +886,47 @@ namespace freequency::ui
     {
         return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
                    .getChildFile ("FREEQUENCY").getChildFile ("keymappings.xml");
+    }
+
+    void MainComponent::setupGuideSystem()
+    {
+        guideController.load();
+        guideController.setAnchorResolver ([this] (GuideAnchor anchor)
+        {
+            return resolveGuideAnchor (anchor);
+        });
+        guideController.attachOverlay();
+
+        juce::Timer::callAfterDelay (900, [this]
+        {
+            guideController.startWelcomeTour();
+        });
+    }
+
+    std::optional<juce::Rectangle<int>> MainComponent::resolveGuideAnchor (GuideAnchor anchor) const
+    {
+        if (transportBar != nullptr)
+        {
+            if (auto local = transportBar->getAnchorBounds (anchor); ! local.isEmpty())
+                return transportBar->localAreaToGlobal (local);
+        }
+
+        if (anchor == GuideAnchor::arrangeView && arrangeView != nullptr && arrangeView->isVisible())
+            return arrangeView->localAreaToGlobal (arrangeView->getLocalBounds());
+
+        if (anchor == GuideAnchor::statusBar && statusBar != nullptr)
+            return statusBar->localAreaToGlobal (statusBar->getLocalBounds());
+
+        const int pinIdx = (int) anchor - (int) GuideAnchor::customPin0;
+        if (pinIdx >= 0 && pinIdx <= 2)
+        {
+            const auto& pin = guideController.settings().customPins[(size_t) pinIdx];
+            const int x = (int) (pin.normX * (float) getWidth());
+            const int y = (int) (pin.normY * (float) getHeight());
+            return localAreaToGlobal (juce::Rectangle<int> (x - 24, y - 24, 48, 48));
+        }
+
+        return std::nullopt;
     }
 
     void MainComponent::saveKeyMappings()

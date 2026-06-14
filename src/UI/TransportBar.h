@@ -2,6 +2,7 @@
 
 #include "UI/UIContext.h"
 #include "UI/SpectrumAnalyzer.h"
+#include "UI/UiGuideTypes.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -47,6 +48,9 @@ namespace freequency::ui
 
         void paint (juce::Graphics&) override;
         void resized() override;
+
+        /** Bounds in TransportBar local coordinates for coach-mark anchors. */
+        [[nodiscard]] juce::Rectangle<int> getAnchorBounds (GuideAnchor anchor) const;
 
     private:
         void timerCallback() override;

@@ -121,6 +121,10 @@ freequency_add_library(FreequencyUI
     UI/MixerView.cpp
     UI/PianoRollEditor.cpp
     UI/MediaBrowser.cpp
+    UI/AppearancePanel.cpp
+    UI/UiGuideTypes.cpp
+    UI/UiGuideOverlay.cpp
+    UI/UiGuideController.cpp
     UI/MainComponent.cpp)
 target_link_libraries(FreequencyUI PUBLIC FreequencyCore FreequencyEngine)
 

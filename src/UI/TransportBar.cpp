@@ -333,4 +333,24 @@ namespace freequency::ui
         button (browseButton, 64);
         button (themeButton, 62);
     }
+
+    juce::Rectangle<int> TransportBar::getAnchorBounds (GuideAnchor anchor) const
+    {
+        switch (anchor)
+        {
+            case GuideAnchor::transportPlay:     return playButton.getBounds();
+            case GuideAnchor::transportMixer:    return mixerButton.getBounds();
+            case GuideAnchor::transportBrowser:  return browseButton.getBounds();
+            case GuideAnchor::transportTheme:    return themeButton.getBounds();
+            case GuideAnchor::transportAudio:    return audioButton.getBounds();
+            case GuideAnchor::transportKeys:     return keysButton.getBounds();
+            case GuideAnchor::transportAddTrack: return addAudioButton.getBounds().getUnion (addMidiButton.getBounds());
+            case GuideAnchor::arrangeView:
+            case GuideAnchor::statusBar:
+            case GuideAnchor::customPin0:
+            case GuideAnchor::customPin1:
+            case GuideAnchor::customPin2:
+            default:                             return {};
+        }
+    }
 } // namespace freequency::ui

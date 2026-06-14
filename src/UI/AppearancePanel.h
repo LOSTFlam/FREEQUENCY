@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UI/Theme.h"
+#include "UI/UiGuideTypes.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -9,71 +10,41 @@
 namespace freequency::ui
 {
     /**
-        AppearancePanel — the theme picker shown in the Appearance settings window.
-        Lists the built-in theme presets as preview swatches; clicking one applies
-        it live (via onPick).
+        AppearancePanel — theme picker + UI Guide / coach-mark settings.
     */
     class AppearancePanel final : public juce::Component
     {
     public:
         std::function<void (const Theme&)> onPick;
+        std::function<void (const GuideSettings&)> onGuideSettingsChanged;
+        std::function<void()> onReplayTour;
+        std::function<void (int pinIndex)> onPlacePin;
+        std::function<void (int pinIndex)> onPreviewPin;
 
-        AppearancePanel()
-        {
-            for (int i = 0; i < themePresets().size(); ++i)
-            {
-                const auto preset = themePresets()[i];
-                auto* b = buttons.add (new juce::TextButton (preset.name));
-                b->onClick = [this, preset] { if (onPick) onPick (preset); repaint(); };
-                addAndMakeVisible (b);
-            }
-        }
+        AppearancePanel();
 
-        void paint (juce::Graphics& g) override
-        {
-            g.fillAll (theme().panel);
-            g.setColour (theme().textDim);
-            g.setFont (juce::FontOptions (12.0f));
-            g.drawText ("THEME", getLocalBounds().removeFromTop (24).reduced (12, 0),
-                        juce::Justification::centredLeft, false);
-        }
+        void setGuideSettings (const GuideSettings& s);
 
-        void resized() override
-        {
-            auto r = getLocalBounds().reduced (12);
-            r.removeFromTop (24);
-            for (int i = 0; i < buttons.size(); ++i)
-            {
-                auto row = r.removeFromTop (40).reduced (0, 4);
-                buttons[i]->setBounds (row.removeFromLeft (180));
+        void paint (juce::Graphics&) override;
+        void resized() override;
+        void paintOverChildren (juce::Graphics&) override;
 
-                // Swatch preview to the right of each button.
-                swatchAreas.set (i, row.reduced (6, 4));
-            }
-            repaint();
-        }
-
-        void paintOverChildren (juce::Graphics& g) override
-        {
-            for (int i = 0; i < buttons.size(); ++i)
-            {
-                const auto t = themePresets()[i];
-                auto area = swatchAreas[i];
-                if (area.isEmpty()) continue;
-                const juce::Colour cols[] = { t.background, t.panelLight, t.accent, t.accentWarm };
-                const int n = 4;
-                const float w = area.getWidth() / (float) n;
-                for (int c = 0; c < n; ++c)
-                {
-                    g.setColour (cols[c]);
-                    g.fillRect ((float) area.getX() + c * w, (float) area.getY(), w, (float) area.getHeight());
-                }
-            }
-        }
+        [[nodiscard]] int preferredHeight() const;
 
     private:
-        juce::OwnedArray<juce::TextButton> buttons;
+        void syncFromSettings();
+        void notifyGuideChanged();
+
+        GuideSettings guideSettings;
+        juce::OwnedArray<juce::TextButton> themeButtons;
         juce::Array<juce::Rectangle<int>> swatchAreas;
+
+        juce::ToggleButton animToggle { "Animated spectral effects" };
+        juce::ToggleButton closeToggle { "Hints when panels close" };
+        juce::TextButton replayTourBtn { "Replay workspace tour" };
+        juce::TextButton pin0Btn { "Pin 1 — place" };
+        juce::TextButton pin1Btn { "Pin 2 — place" };
+        juce::TextButton pin2Btn { "Pin 3 — place" };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AppearancePanel)
     };

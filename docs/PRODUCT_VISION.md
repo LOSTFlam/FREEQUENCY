@@ -86,6 +86,15 @@ The UI expresses the Frequency Field metaphor:
 
 Figma source: [FREEQUENCY — Spectral UI](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)
 
+### UI Guide (coach marks)
+
+Animated spectral overlays teach the workspace layout:
+
+- **Welcome tour** on first launch (transport → arrange → mixer → browser → themes)
+- **Fly-beam hints** when floating panels close (Appearance, Audio, Keys, piano roll) or when mixer/browser hide
+- **Six effect styles**: pulse ring, aurora glow, spotlight, fly-beam, ripple, shimmer
+- **Three custom pins** — place anywhere via Appearance (F3); positions persist in `guide_settings.xml`
+
 ---
 
 ## Phased delivery

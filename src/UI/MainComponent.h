@@ -12,6 +12,9 @@
 #include "UI/PianoRollEditor.h"
 #include "UI/MediaBrowser.h"
 #include "UI/AppearancePanel.h"
+#include "UI/UiGuideController.h"
+
+#include <optional>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -41,7 +44,7 @@ namespace freequency::ui
         void paint (juce::Graphics&) override;
         void resized() override;
         bool keyStateChanged (bool isKeyDown) override; // computer-keyboard piano
-        void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
+        void mouseDown (const juce::MouseEvent& e) override;
 
         // ── ApplicationCommandTarget ────────────────────────────────────────────
         ApplicationCommandTarget* getNextCommandTarget() override { return nullptr; }
@@ -77,6 +80,8 @@ namespace freequency::ui
         void openAudioSettings();
         void openAppearance();
         void applyThemeAndRefresh (const Theme&);
+        void setupGuideSystem();
+        [[nodiscard]] std::optional<juce::Rectangle<int>> resolveGuideAnchor (GuideAnchor anchor) const;
 
         // Undo / redo via whole-project ValueTree snapshots.
         void pushUndo();
@@ -122,6 +127,8 @@ namespace freequency::ui
 
         bool mixerVisible { false };
         juce::String engineStatus;
+
+        UiGuideController guideController { *this };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
     };
