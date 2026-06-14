@@ -1,5 +1,7 @@
 #include "Engine/AudioClipProcessor.h"
 
+#include "DSP/RtElasticStretch.h"
+
 namespace freequency::engine
 {
     AudioClipProcessor::AudioClipProcessor (Transport& sharedTransport)
@@ -37,7 +39,6 @@ namespace freequency::engine
         {
             const auto regionEnd = region.timelineStartSample + region.lengthSamples;
 
-            // Clip the [region] against this [block] on the timeline.
             const auto overlapStart = juce::jmax (blockStart, region.timelineStartSample);
             const auto overlapEnd   = juce::jmin (blockEnd, regionEnd);
 
@@ -48,9 +49,27 @@ namespace freequency::engine
             if (src == nullptr)
                 continue;
 
-            const auto count       = (int) (overlapEnd - overlapStart);
-            const auto destOffset  = (int) (overlapStart - blockStart);
-            const auto srcStart    = region.sourceOffsetSamples + (overlapStart - region.timelineStartSample);
+            const auto count      = (int) (overlapEnd - overlapStart);
+            const auto destOffset = (int) (overlapStart - blockStart);
+
+            if (region.elasticMode == models::ElasticMode::realtimePreview
+                && std::abs (region.stretchRatio - 1.0) > 1.0e-4)
+            {
+                const double timelineRel = (double) (overlapStart - region.timelineStartSample);
+                const double sourceStart = (double) region.sourceOffsetSamples + timelineRel * region.stretchRatio;
+
+                dsp::RtElasticStretch::mixRegion (buffer,
+                                                  destOffset,
+                                                  count,
+                                                  *src,
+                                                  sourceStart,
+                                                  region.stretchRatio,
+                                                  region.gain,
+                                                  region.reversed);
+                continue;
+            }
+
+            const auto srcStart = region.sourceOffsetSamples + (overlapStart - region.timelineStartSample);
 
             if (srcStart < 0 || srcStart >= src->getNumSamples())
                 continue;
@@ -64,8 +83,6 @@ namespace freequency::engine
 
             for (int ch = 0; ch < outChannels; ++ch)
             {
-                // Mono sources feed every output channel; stereo maps 1:1 and
-                // wraps if the output has more channels than the source.
                 const int srcCh = srcChannels > 0 ? juce::jmin (ch, srcChannels - 1) : 0;
 
                 buffer.addFrom (ch, destOffset, *src, srcCh,

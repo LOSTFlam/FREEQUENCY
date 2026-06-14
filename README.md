@@ -198,6 +198,7 @@ printing `[PASS]` for each.
 - Project save/load ✅
 - Full piano-roll editor, clip drag/trim, OLA time-stretch, resample pitch,
   comping (take switching + swipe crossfade), PatternClip playback, ghost notes ✅
-- **Frequency Field** editor (v1 shell — pitch grid, VariAudio anchors, comp bands) 🔄
-- Next: VariAudio **resynth bake**, portamento slides, **real-time elastic** preview
+- **Frequency Field** editor — pitch grid, detected contour, drag VariAudio anchors, bake ✅
+- VariAudio **offline resynth bake** (snapshot) ✅ · **real-time elastic** preview node ✅
+- Next: portamento slides, warp marker editing, formant preservation
 - Design: [FREEQUENCY — Spectral UI (Figma)](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)

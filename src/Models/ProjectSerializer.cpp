@@ -24,6 +24,8 @@ namespace freequency::models
         OMNI_ID (refs) OMNI_ID (scsrc) OMNI_ID (stretch) OMNI_ID (pitch)
         OMNI_ID (takes) OMNI_ID (activeTake)
         OMNI_ID (COMPSWIPE) OMNI_ID (takeA) OMNI_ID (takeB) OMNI_ID (crossfade)
+        OMNI_ID (VARIAUDIO) OMNI_ID (pitchCents) OMNI_ID (formant) OMNI_ID (locked)
+        OMNI_ID (elasticMode) OMNI_ID (WARP) OMNI_ID (sourceTime) OMNI_ID (timelineTime)
         OMNI_ID (patternId) OMNI_ID (stepsPerBar) OMNI_ID (lengthBeats)
         OMNI_ID (channel) OMNI_ID (rootNote) OMNI_ID (on)
         OMNI_ID (PATTERN) OMNI_ID (CHANNEL) OMNI_ID (STEP)
@@ -169,6 +171,26 @@ namespace freequency::models
                         swipeTree.setProperty (takeB, region.takeB, nullptr);
                         swipeTree.setProperty (crossfade, region.crossfadePosition, nullptr);
                         clipTree.appendChild (swipeTree, nullptr);
+                    }
+
+                    clipTree.setProperty (elasticMode, (int) audioClip->elasticMode, nullptr);
+
+                    for (const auto& seg : audioClip->variAudioSegments)
+                    {
+                        juce::ValueTree vaTree (VARIAUDIO);
+                        vaTree.setProperty (time, seg.time, nullptr);
+                        vaTree.setProperty (pitchCents, seg.pitchCents, nullptr);
+                        vaTree.setProperty (formant, seg.formantShift, nullptr);
+                        vaTree.setProperty (locked, seg.locked, nullptr);
+                        clipTree.appendChild (vaTree, nullptr);
+                    }
+
+                    for (const auto& wm : audioClip->warpMarkers)
+                    {
+                        juce::ValueTree warpTree (WARP);
+                        warpTree.setProperty (sourceTime, wm.sourceTime, nullptr);
+                        warpTree.setProperty (timelineTime, wm.timelineTime, nullptr);
+                        clipTree.appendChild (warpTree, nullptr);
                     }
                 }
                 else if (auto* midiClip = dynamic_cast<MidiClip*> (clip))
@@ -455,6 +477,35 @@ namespace freequency::models
                                 region.takeB = (int) swipeNode.getProperty (takeB, 1);
                                 region.crossfadePosition = (float) (double) swipeNode.getProperty (crossfade, 0.5);
                                 clip->compSwipeRegions.push_back (region);
+                            }
+
+                            clip->elasticMode = (ElasticMode) (int) child.getProperty (elasticMode,
+                                                                                       (int) ElasticMode::offlineOLA);
+
+                            for (int s = 0; s < child.getNumChildren(); ++s)
+                            {
+                                auto vaNode = child.getChild (s);
+                                if (! vaNode.hasType (VARIAUDIO))
+                                    continue;
+
+                                VariAudioSegment seg;
+                                seg.time = vaNode.getProperty (time, 0.0);
+                                seg.pitchCents = (int) vaNode.getProperty (pitchCents, 0);
+                                seg.formantShift = (float) (double) vaNode.getProperty (formant, 0.0);
+                                seg.locked = (bool) vaNode.getProperty (locked, false);
+                                clip->variAudioSegments.push_back (seg);
+                            }
+
+                            for (int s = 0; s < child.getNumChildren(); ++s)
+                            {
+                                auto warpNode = child.getChild (s);
+                                if (! warpNode.hasType (WARP))
+                                    continue;
+
+                                WarpMarker wm;
+                                wm.sourceTime = warpNode.getProperty (sourceTime, 0.0);
+                                wm.timelineTime = warpNode.getProperty (timelineTime, 0.0);
+                                clip->warpMarkers.push_back (wm);
                             }
 
                             if (clip->getNumTakes() >= 2 && clip->compSwipeRegions.empty())

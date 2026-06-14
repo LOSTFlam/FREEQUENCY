@@ -15,9 +15,8 @@ namespace freequency::ui
     /**
         FrequencyFieldEditor — flagship harmonic surface for one AudioClip.
 
-        v1 shell: pitch grid, ghost notes, VariAudio anchors, comp-swipe band,
-        elastic mode indicator. Resynth bake and RT elastic preview follow in
-        later phases.
+        Pitch grid, ghost notes, VariAudio anchors (drag / delete), detected
+        spectral contour, comp-swipe overlay, elastic mode, and bake-to-snapshot.
     */
     class FrequencyFieldEditor final : public juce::Component,
                                        private juce::Timer
@@ -47,14 +46,23 @@ namespace freequency::ui
             explicit FieldCanvas (FrequencyFieldEditor& o) : owner (o) {}
             void paint (juce::Graphics&) override;
             void mouseDown (const juce::MouseEvent&) override;
+            void mouseDrag (const juce::MouseEvent&) override;
+            void mouseUp (const juce::MouseEvent&) override;
         private:
             FrequencyFieldEditor& owner;
         };
 
         void timerCallback() override;
         void loadGhostNotes();
+        void loadPreviewAudio();
+        void refreshContour();
+        void bakeToSnapshot();
+        int findAnchorAt (int x, int y) const;
+        void removeAnchor (int index);
+        [[nodiscard]] double targetCentsAtY (int y) const;
         [[nodiscard]] double clipLengthSec() const;
         [[nodiscard]] int pitchToY (int pitch) const;
+        [[nodiscard]] int centsToY (double cents) const;
         [[nodiscard]] int timeToX (double relSec) const;
         [[nodiscard]] int pitchAtY (int y) const;
         [[nodiscard]] double timeAtX (int x) const;
@@ -67,13 +75,24 @@ namespace freequency::ui
         juce::TextButton closeButton { "Close" };
         juce::ToggleButton ghostButton { "Ghost notes" };
         juce::ComboBox elasticBox;
+        juce::TextButton bakeButton { "Bake" };
         juce::Label hintLabel;
+        juce::Label statusLabel;
 
+        juce::Viewport viewport;
         FieldCanvas canvas;
-        models::GhostNoteConfig ghostConfig;
 
+        models::GhostNoteConfig ghostConfig;
         std::vector<GhostNote> ghostNotes;
+
+        juce::AudioBuffer<float> previewBuffer;
+        double previewSampleRate { 44100.0 };
+        std::vector<double> contourTimes;
+        std::vector<double> contourCents;
+
         int playheadX { -1 };
+        int dragAnchorIndex { -1 };
+        bool bakePulse { false };
 
         static constexpr int pitchMin = 36;
         static constexpr int pitchMax = 96;

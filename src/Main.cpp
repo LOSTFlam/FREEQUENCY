@@ -4,7 +4,9 @@
 #include "Models/MidiTrack.h"
 #include "Models/ProjectSerializer.h"
 #include "Engine/AudioEngine.h"
+#include "Engine/VariAudioResynth.h"
 #include "DSP/BuiltinEffects.h"
+#include "DSP/RtElasticStretch.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 
@@ -307,6 +309,84 @@ namespace freequency
                 std::cout << "FREEQUENCY self-test: comp swipe peaks low=" << peakLow
                           << " high=" << peakHigh
                           << (compOk ? "  [PASS]" : "  [FAIL]") << std::endl;
+            }
+
+            // VariAudio offline resynth: +1200 cent segment must alter waveform samples.
+            {
+                juce::AudioBuffer<float> buf (1, 4410);
+                for (int i = 0; i < buf.getNumSamples(); ++i)
+                {
+                    const float s = 0.35f * std::sin (2.0f * juce::MathConstants<float>::pi * 440.0f
+                                                      * (float) i / 44100.0f);
+                    buf.setSample (0, i, s);
+                }
+
+                std::vector<models::VariAudioSegment> segs;
+                models::VariAudioSegment seg;
+                seg.time = 0.05;
+                seg.pitchCents = 1200;
+                segs.push_back (seg);
+
+                auto flat = engine::VariAudioResynth::applySegments (buf, {}, 44100.0, 0.1);
+                auto shifted = engine::VariAudioResynth::applySegments (buf, segs, 44100.0, 0.1);
+
+                const float sFlat = flat != nullptr ? flat->getSample (0, 2000) : 0.0f;
+                const float sShift = shifted != nullptr ? shifted->getSample (0, 2000) : 0.0f;
+                const bool variOk = flat != nullptr && shifted != nullptr
+                                    && std::abs (sFlat - sShift) > 0.02f;
+                std::cout << "FREEQUENCY self-test: variAudio sample delta=" << std::abs (sFlat - sShift)
+                          << (variOk ? "  [PASS]" : "  [FAIL]") << std::endl;
+            }
+
+            // Elastic RT preview: stretch ratio changes resampled waveform.
+            {
+                juce::AudioBuffer<float> src (1, 44100);
+                for (int i = 0; i < src.getNumSamples(); ++i)
+                    src.setSample (0, i, (float) i / 44100.0f);
+
+                juce::AudioBuffer<float> outA (1, 2205);
+                juce::AudioBuffer<float> outB (1, 2205);
+                outA.clear();
+                outB.clear();
+
+                dsp::RtElasticStretch::mixRegion (outA, 0, 2205, src, 0.0, 1.0, 1.0f, false);
+                dsp::RtElasticStretch::mixRegion (outB, 0, 2205, src, 0.0, 1.5, 1.0f, false);
+
+                const float midA = outA.getSample (0, 1100);
+                const float midB = outB.getSample (0, 1100);
+                const bool elasticOk = std::abs (midA - midB) > 0.01f;
+                std::cout << "FREEQUENCY self-test: elastic RT delta=" << std::abs (midA - midB)
+                          << (elasticOk ? "  [PASS]" : "  [FAIL]") << std::endl;
+            }
+
+            // Serializer: VariAudio + elastic fields round-trip.
+            {
+                models::Project p;
+                auto* tr = p.getTimeline().addAudioTrack();
+                auto* ac = tr->addClip();
+                ac->elasticMode = models::ElasticMode::realtimePreview;
+                models::VariAudioSegment seg;
+                seg.time = 0.5;
+                seg.pitchCents = 50;
+                ac->variAudioSegments.push_back (seg);
+                models::WarpMarker wm;
+                wm.sourceTime = 0.0;
+                wm.timelineTime = 0.0;
+                ac->warpMarkers.push_back (wm);
+
+                const auto tree = models::ProjectSerializer::toValueTree (p);
+                models::Project p2;
+                models::ProjectSerializer::fromValueTree (tree, p2);
+                auto* ac2 = dynamic_cast<models::AudioTrack*> (p2.getTimeline().getTrack (0));
+                auto* clip2 = ac2 != nullptr && ac2->getNumClips() > 0
+                                  ? dynamic_cast<models::AudioClip*> (ac2->getClip (0)) : nullptr;
+                const bool serOk = clip2 != nullptr
+                                   && clip2->elasticMode == models::ElasticMode::realtimePreview
+                                   && clip2->variAudioSegments.size() == 1
+                                   && clip2->variAudioSegments[0].pitchCents == 50
+                                   && clip2->warpMarkers.size() == 1;
+                std::cout << "FREEQUENCY self-test: serializer (vari/elastic) "
+                          << (serOk ? "[PASS]" : "[FAIL]") << std::endl;
             }
         }
 

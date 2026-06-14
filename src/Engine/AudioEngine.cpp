@@ -4,6 +4,7 @@
 #include "Models/MidiTrack.h"
 #include "Models/PatternExpander.h"
 #include "Engine/CompSwipeMixer.h"
+#include "Engine/VariAudioResynth.h"
 #include "DSP/BuiltinEffects.h"
 #include "DSP/TimeStretch.h"
 
@@ -19,6 +20,28 @@ namespace freequency::engine
             thread only ever mixes from ready-to-use buffers. Returns nullptr if
             the file can't be read.
         */
+        std::unique_ptr<juce::AudioBuffer<float>> applyClipWarp (std::unique_ptr<juce::AudioBuffer<float>> buf,
+                                                                 const models::AudioClip& clip)
+        {
+            if (buf == nullptr)
+                return buf;
+
+            const bool rtElastic = clip.elasticMode == models::ElasticMode::realtimePreview;
+            const bool noStretch = clip.elasticMode == models::ElasticMode::none;
+
+            if (rtElastic || noStretch)
+                return dsp::TimeStretch::applyWarp (std::move (buf), 1.0, clip.pitchSemitones);
+
+            return dsp::TimeStretch::applyWarp (std::move (buf),
+                                                clip.stretchRatio,
+                                                clip.pitchSemitones);
+        }
+
+        double audioClipLengthSec (const models::AudioClip& clip)
+        {
+            return clip.length > 0.0 ? clip.length : 4.0;
+        }
+
         std::unique_ptr<juce::AudioBuffer<float>> loadFileResampled (juce::AudioFormatManager& fm,
                                                                      const juce::File& file,
                                                                      double targetSampleRate)
@@ -555,9 +578,7 @@ namespace freequency::engine
                             if (takeBuf == nullptr)
                                 continue;
 
-                            takeBuf = dsp::TimeStretch::applyWarp (std::move (takeBuf),
-                                                                   clip->stretchRatio,
-                                                                   clip->pitchSemitones);
+                            takeBuf = applyClipWarp (std::move (takeBuf), *clip);
 
                             if (clip->reversed)
                                 for (int ch = 0; ch < takeBuf->getNumChannels(); ++ch)
@@ -572,6 +593,14 @@ namespace freequency::engine
                             const auto srcOffset = (juce::int64) (clip->sourceOffset * sr);
                             buffer = CompSwipeMixer::mixTakes (*clip, takePtrs, sr, srcOffset);
                         }
+
+                        if (buffer != nullptr && ! clip->variAudioSegments.empty())
+                        {
+                            buffer = VariAudioResynth::applySegments (*buffer,
+                                                                      clip->variAudioSegments,
+                                                                      sr,
+                                                                      audioClipLengthSec (*clip));
+                        }
                     }
                     else
                     {
@@ -579,13 +608,19 @@ namespace freequency::engine
                         if (buffer == nullptr)
                             continue;
 
-                        buffer = dsp::TimeStretch::applyWarp (std::move (buffer),
-                                                              clip->stretchRatio,
-                                                              clip->pitchSemitones);
+                        buffer = applyClipWarp (std::move (buffer), *clip);
 
                         if (clip->reversed)
                             for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
                                 buffer->reverse (ch, 0, buffer->getNumSamples());
+
+                        if (! clip->variAudioSegments.empty())
+                        {
+                            buffer = VariAudioResynth::applySegments (*buffer,
+                                                                      clip->variAudioSegments,
+                                                                      sr,
+                                                                      audioClipLengthSec (*clip));
+                        }
                     }
 
                     if (buffer == nullptr)
@@ -596,12 +631,24 @@ namespace freequency::engine
                     region.timelineStartSample  = (juce::int64) (clip->startTime * sr);
                     region.sourceOffsetSamples  = (juce::int64) (clip->sourceOffset * sr);
                     region.gain                 = compMix ? 1.0f : clip->gain;
+                    region.stretchRatio         = clip->stretchRatio;
+                    region.reversed             = clip->reversed;
+                    region.elasticMode          = clip->elasticMode;
 
                     const auto available = (juce::int64) buffer->getNumSamples() - region.sourceOffsetSamples;
+                    juce::int64 maxTimelineSamples = available;
+
+                    if (clip->elasticMode == models::ElasticMode::realtimePreview
+                        && clip->stretchRatio > 1.0e-4)
+                    {
+                        maxTimelineSamples = (juce::int64) std::floor ((double) available / clip->stretchRatio);
+                    }
+
                     region.lengthSamples = clip->length > 0.0
                                                ? (juce::int64) (clip->length * sr)
-                                               : juce::jmax ((juce::int64) 0, available);
-                    region.lengthSamples = juce::jmin (region.lengthSamples, juce::jmax ((juce::int64) 0, available));
+                                               : juce::jmax ((juce::int64) 0, maxTimelineSamples);
+                    region.lengthSamples = juce::jmin (region.lengthSamples,
+                                                       juce::jmax ((juce::int64) 0, maxTimelineSamples));
 
                     snapshot->buffers.add (buffer.release());
                     snapshot->regions.push_back (region);

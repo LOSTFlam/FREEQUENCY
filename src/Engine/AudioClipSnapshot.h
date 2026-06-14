@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Types.h"
+#include "Models/HarmonicEdit.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -34,6 +35,9 @@ namespace freequency::engine
             juce::int64 sourceOffsetSamples { 0 }; // offset into the source buffer
             int   bufferIndex { -1 };              // index into `buffers`
             float gain { 1.0f };
+            double stretchRatio { 1.0 };
+            bool reversed { false };
+            models::ElasticMode elasticMode { models::ElasticMode::offlineOLA };
         };
 
         juce::OwnedArray<juce::AudioBuffer<float>> buffers; // resampled source data

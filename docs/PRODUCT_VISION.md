@@ -107,7 +107,7 @@ Animated spectral overlays teach the workspace layout:
 | B | Model foundations (`HarmonicEdit.h`), docs, Spectral theme | 🔄 this PR |
 | C | Ghost notes in piano roll + PatternClip engine playback | ✅ |
 | D | Swipe comp crossfade (lane UI + snapshot mix) | ✅ |
-| E | VariAudio segments + offline resynth bake | 🔄 anchors in Frequency Field |
+| E | VariAudio segments + offline resynth bake | ✅ |
 | F | Portamento slide curves (MIDI export + synth) | ⏳ |
-| G | Real-time elastic preview node | ⏳ |
-| H | Frequency Field editor (dedicated view) | 🔄 v1 shell |
+| G | Real-time elastic preview node | ✅ |
+| H | Frequency Field editor (interactive pitch/contour + bake) | ✅ |
