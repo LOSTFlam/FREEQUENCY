@@ -1045,6 +1045,27 @@ namespace freequency::engine
             peak = juce::jmax (peak, renderBuffer.getMagnitude (ch, 0, numSamples));
 
         masterLevel.store (peak, std::memory_order_relaxed);
+
+        // Feed the spectrum-analyzer ring with the mono mix.
+        {
+            const auto* l = renderBuffer.getReadPointer (0);
+            const auto* r = renderBuffer.getNumChannels() > 1 ? renderBuffer.getReadPointer (1) : l;
+            int w = scopeWrite.load (std::memory_order_relaxed);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                scopeRing[w] = 0.5f * (l[i] + r[i]);
+                w = (w + 1) & (scopeSize - 1);
+            }
+            scopeWrite.store (w, std::memory_order_relaxed);
+        }
+    }
+
+    void AudioEngine::readScope (float* dest, int numSamples) const noexcept
+    {
+        const int w = scopeWrite.load (std::memory_order_relaxed);
+        const int count = juce::jmin (numSamples, scopeSize);
+        for (int i = 0; i < count; ++i)
+            dest[i] = scopeRing[(w - count + i + scopeSize) & (scopeSize - 1)];
     }
 
     // ── Heartbeat / housekeeping ────────────────────────────────────────────────

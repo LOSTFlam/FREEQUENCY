@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UI/UIContext.h"
+#include "UI/Theme.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -40,7 +41,7 @@ namespace freequency::ui
             if (lastX < 0 || lastX > getWidth())
                 return;
 
-            g.setColour (juce::Colour (FreequencyLookAndFeel_accent));
+            g.setColour (theme().accent);
             g.drawVerticalLine (lastX, 0.0f, (float) getHeight());
 
             juce::Path tri;
@@ -51,9 +52,6 @@ namespace freequency::ui
         }
 
     private:
-        // Avoid pulling the L&F header in; inline the accent colour value.
-        static constexpr juce::uint32 FreequencyLookAndFeel_accent = 0xff2dd4bf;
-
         UIContext& context;
         int viewOffsetX { 0 };
         int lastX { -1 };

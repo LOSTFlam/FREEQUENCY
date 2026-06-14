@@ -15,7 +15,7 @@ namespace freequency::ui
             toggleMixerView, addAudioTrack, addMidiTrack, saveProject, openProject,
             openKeyMappings, duplicateClip, splitClip, deleteClip, reverseClip, nudgeLeft, nudgeRight,
             playheadLeft, playheadRight, tempoUp, tempoDown, toggleKeyboardPiano,
-            octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser
+            octaveUp, octaveDown, undo, redo, openAudioSettings, toggleBrowser, openAppearance
         };
     }
 
@@ -45,6 +45,8 @@ namespace freequency::ui
 
     MainComponent::MainComponent()
     {
+        loadThemeSelection();
+        lookAndFeel.applyTheme();
         juce::Desktop::getInstance().setDefaultLookAndFeel (&lookAndFeel);
 
         buildDemoProject();
@@ -89,6 +91,7 @@ namespace freequency::ui
             if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
             resized();
         };
+        transportBar->onOpenAppearance = [this] { openAppearance(); };
         addAndMakeVisible (*transportBar);
 
         arrangeView = std::make_unique<ArrangeView> (context);
@@ -113,7 +116,7 @@ namespace freequency::ui
         // Receive keyboard shortcuts + computer-keyboard piano.
         setWantsKeyboardFocus (true);
 
-        setSize (1560, 840);
+        setSize (1660, 840);
     }
 
     MainComponent::~MainComponent()
@@ -121,6 +124,7 @@ namespace freequency::ui
         saveKeyMappings();
         keyMappingWindow = nullptr;
         audioSettingsWindow = nullptr;
+        appearanceWindow = nullptr;
         audioEngine.shutdown();
         juce::Desktop::getInstance().setDefaultLookAndFeel (nullptr);
     }
@@ -191,7 +195,7 @@ namespace freequency::ui
             CommandIDs::playheadRight, CommandIDs::tempoUp, CommandIDs::tempoDown,
             CommandIDs::toggleKeyboardPiano, CommandIDs::octaveUp, CommandIDs::octaveDown,
             CommandIDs::undo, CommandIDs::redo, CommandIDs::openAudioSettings,
-            CommandIDs::toggleBrowser });
+            CommandIDs::toggleBrowser, CommandIDs::openAppearance });
     }
 
     void MainComponent::getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& r)
@@ -228,6 +232,7 @@ namespace freequency::ui
             case CommandIDs::redo:            r.setInfo ("Redo", "", ed, 0); r.addDefaultKeypress ('z', ModifierKeys::commandModifier | ModifierKeys::shiftModifier); break;
             case CommandIDs::openAudioSettings: r.setInfo ("Audio Settings…", "Choose device / sample rate / buffer", vw, 0); r.addDefaultKeypress (KeyPress::F1Key, 0); break;
             case CommandIDs::toggleBrowser:   r.setInfo ("Toggle Browser", "Media/sample browser", vw, 0); r.addDefaultKeypress (KeyPress::F2Key, 0); break;
+            case CommandIDs::openAppearance:  r.setInfo ("Appearance / Theme…", "Change the look", vw, 0); r.addDefaultKeypress (KeyPress::F3Key, 0); break;
 
             case CommandIDs::toggleKeyboardPiano: r.setInfo ("Computer-Keyboard Piano", "Play instruments via QWERTY", in, 0); r.addDefaultKeypress (KeyPress::tabKey, 0); break;
             case CommandIDs::octaveUp:        r.setInfo ("Piano Octave +", "", in, 0); r.addDefaultKeypress ('x', 0); break;
@@ -273,6 +278,7 @@ namespace freequency::ui
                 if (mediaBrowser) mediaBrowser->setVisible (browserVisible);
                 resized();
                 break;
+            case CommandIDs::openAppearance:  openAppearance(); break;
 
             case CommandIDs::toggleKeyboardPiano: pianoEnabled = ! pianoEnabled; if (! pianoEnabled) allPianoNotesOff(); break;
             case CommandIDs::octaveUp:        allPianoNotesOff(); pianoOctave = juce::jmin (9, pianoOctave + 1); break;
@@ -284,7 +290,7 @@ namespace freequency::ui
 
     void MainComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+        g.fillAll (theme().background);
     }
 
     void MainComponent::resized()
@@ -382,7 +388,7 @@ namespace freequency::ui
         {
             keyMappingWindow = std::make_unique<juce::DocumentWindow> (
                 "FREEQUENCY — Keyboard Shortcuts",
-                juce::Colour (FreequencyLookAndFeel::panel), juce::DocumentWindow::closeButton);
+                theme().panel, juce::DocumentWindow::closeButton);
 
             auto* editor = new juce::KeyMappingEditorComponent (*commandManager.getKeyMappings(), true);
             editor->setSize (620, 560);
@@ -405,13 +411,43 @@ namespace freequency::ui
         afterClipChange();
     }
 
+    void MainComponent::applyThemeAndRefresh (const Theme& t)
+    {
+        setTheme (t);
+        lookAndFeel.applyTheme();
+        saveThemeSelection();
+        // Re-skin everything that's currently showing (repaint() recurses into
+        // child components: transport, arrange, mixer, status, browser, etc.).
+        repaint();
+        if (appearanceWindow) appearanceWindow->repaint();
+        for (auto* w : pluginWindows) w->repaint();
+    }
+
+    void MainComponent::openAppearance()
+    {
+        if (appearanceWindow == nullptr)
+        {
+            appearanceWindow = std::make_unique<juce::DocumentWindow> (
+                "FREEQUENCY — Appearance", theme().panel, juce::DocumentWindow::closeButton);
+
+            auto* panel = new AppearancePanel();
+            panel->onPick = [this] (const Theme& t) { applyThemeAndRefresh (t); };
+            panel->setSize (320, 24 + themePresets().size() * 40 + 24);
+            appearanceWindow->setUsingNativeTitleBar (true);
+            appearanceWindow->setContentOwned (panel, true);
+            appearanceWindow->centreWithSize (340, panel->getHeight() + 30);
+        }
+        appearanceWindow->setVisible (true);
+        appearanceWindow->toFront (true);
+    }
+
     void MainComponent::openAudioSettings()
     {
         if (audioSettingsWindow == nullptr)
         {
             audioSettingsWindow = std::make_unique<juce::DocumentWindow> (
                 "FREEQUENCY — Audio Settings",
-                juce::Colour (FreequencyLookAndFeel::panel), juce::DocumentWindow::closeButton);
+                theme().panel, juce::DocumentWindow::closeButton);
 
             // 0..2 inputs (recording), 2 outputs; full device/rate/buffer control.
             auto* selector = new juce::AudioDeviceSelectorComponent (

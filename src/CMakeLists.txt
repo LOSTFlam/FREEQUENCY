@@ -107,6 +107,7 @@ target_link_libraries(FreequencyEngine PUBLIC FreequencyCore FreequencyDSP)
 
 # ── FreequencyUI — views (observe Core/Engine, never the reverse) ────────────────
 freequency_add_library(FreequencyUI
+    UI/Theme.cpp
     UI/FreequencyLookAndFeel.cpp
     UI/TransportBar.cpp
     UI/TrackHeaderComponent.cpp

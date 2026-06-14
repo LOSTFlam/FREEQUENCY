@@ -19,7 +19,7 @@ namespace freequency::ui
         addAndMakeVisible (titleLabel);
         titleLabel.setText ("Piano Roll — " + clip.name, juce::dontSendNotification);
         titleLabel.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-        titleLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
+        titleLabel.setColour (juce::Label::textColourId, theme().accent);
 
         addAndMakeVisible (closeButton);
         closeButton.onClick = [this] { if (onClose) onClose(); };
@@ -29,7 +29,7 @@ namespace freequency::ui
 
         addAndMakeVisible (slideButton);
         slideButton.setClickingTogglesState (true);
-        slideButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
+        slideButton.setColour (juce::TextButton::buttonOnColourId, theme().accentWarm);
         slideButton.onClick = [this] { slideMode = slideButton.getToggleState(); };
 
         addAndMakeVisible (snapBox);
@@ -196,8 +196,8 @@ namespace freequency::ui
     // ── Layout ───────────────────────────────────────────────────────────────────
     void PianoRollEditor::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
-        g.setColour (juce::Colour (FreequencyLookAndFeel::panel));
+        g.fillAll (theme().background);
+        g.setColour (theme().panel);
         g.fillRect (0, 0, getWidth(), toolbarH);
     }
 
@@ -234,7 +234,7 @@ namespace freequency::ui
     // ── Keys gutter ──────────────────────────────────────────────────────────────
     void PianoRollEditor::Keys::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panelLight));
+        g.fillAll (theme().panelLight);
         for (int pitch = 0; pitch < 128; ++pitch)
         {
             const int y = owner.pitchToY (pitch);
@@ -242,7 +242,7 @@ namespace freequency::ui
             g.fillRect (0, y, getWidth(), owner.noteHeight - 1);
             if (pitch % 12 == 0) // C
             {
-                g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+                g.setColour (theme().textDim);
                 g.setFont (juce::FontOptions (9.0f));
                 g.drawText ("C" + juce::String (pitch / 12 - 1), 2, y, getWidth() - 4, owner.noteHeight,
                             juce::Justification::centredLeft, false);
@@ -274,7 +274,7 @@ namespace freequency::ui
 
     void PianoRollEditor::Grid::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+        g.fillAll (theme().background);
 
         // Row striping for black/white keys.
         for (int pitch = 0; pitch < 128; ++pitch)
@@ -284,7 +284,7 @@ namespace freequency::ui
                 g.setColour (juce::Colour (0xff1b1e25));
                 g.fillRect (0, owner.pitchToY (pitch), getWidth(), owner.noteHeight);
             }
-            g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (0.25f));
+            g.setColour (theme().outline.withAlpha (0.25f));
             g.drawHorizontalLine (owner.pitchToY (pitch), 0.0f, (float) getWidth());
         }
 
@@ -295,7 +295,7 @@ namespace freequency::ui
         {
             const int x = owner.beatsToX ((double) b);
             const bool bar = (b % beatsPerBar) == 0;
-            g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (bar ? 0.8f : 0.35f));
+            g.setColour (theme().outline.withAlpha (bar ? 0.8f : 0.35f));
             g.drawVerticalLine (x, 0.0f, (float) getHeight());
         }
 
@@ -321,7 +321,7 @@ namespace freequency::ui
         if (playBeats >= 0.0)
         {
             const int px = owner.beatsToX (playBeats);
-            g.setColour (juce::Colour (FreequencyLookAndFeel::accent));
+            g.setColour (theme().accent);
             g.drawVerticalLine (px, 0.0f, (float) getHeight());
         }
     }
@@ -417,8 +417,8 @@ namespace freequency::ui
     // ── Velocity lane ────────────────────────────────────────────────────────────
     void PianoRollEditor::VelLane::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.fillAll (theme().panel);
+        g.setColour (theme().outline);
         g.drawHorizontalLine (0, 0.0f, (float) getWidth());
 
         for (const auto& n : owner.notes)

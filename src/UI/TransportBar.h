@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UI/UIContext.h"
+#include "UI/SpectrumAnalyzer.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -41,6 +42,9 @@ namespace freequency::ui
         /** Called when the user toggles the media browser. */
         std::function<void()> onToggleBrowser;
 
+        /** Called when the user opens the appearance/theme settings. */
+        std::function<void()> onOpenAppearance;
+
         void paint (juce::Graphics&) override;
         void resized() override;
 
@@ -69,6 +73,7 @@ namespace freequency::ui
         juce::TextButton keysButton     { "Keys" };
         juce::TextButton audioButton    { "Audio" };
         juce::TextButton browseButton   { "Browse" };
+        juce::TextButton themeButton    { "Theme" };
 
         std::unique_ptr<juce::FileChooser> fileChooser;
 
@@ -76,7 +81,7 @@ namespace freequency::ui
         juce::Label tempoLabel;
         juce::Label tempoCaption;
 
-        float meterLevel { 0.0f };
+        SpectrumAnalyzer spectrum { context.engine };
         std::vector<double> tapTimesMs; // tap-tempo history
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TransportBar)

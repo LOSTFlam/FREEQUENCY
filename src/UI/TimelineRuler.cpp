@@ -5,8 +5,8 @@ namespace freequency::ui
 {
     void TimelineRuler::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panelLight));
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.fillAll (theme().panelLight);
+        g.setColour (theme().outline);
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
         const auto& timeline = context.project.getTimeline();
@@ -26,13 +26,13 @@ namespace freequency::ui
             if (x > getWidth())
                 break;
 
-            g.setColour (juce::Colour (FreequencyLookAndFeel::textPrimary));
+            g.setColour (theme().textPrimary);
             g.drawVerticalLine (x, 0.0f, (float) getHeight());
             g.drawText (juce::String (bar + 1), x + 4, 2, 40, getHeight() - 4,
                         juce::Justification::topLeft, false);
 
             // Beat ticks within the bar.
-            g.setColour (juce::Colour (FreequencyLookAndFeel::textDim).withAlpha (0.5f));
+            g.setColour (theme().textDim.withAlpha (0.5f));
             for (int b = 1; b < beatsPerBar; ++b)
             {
                 const int bx = context.secondsToX (t + b * secsPerBeat) - viewOffsetX;

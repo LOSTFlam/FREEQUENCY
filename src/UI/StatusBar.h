@@ -20,12 +20,12 @@ namespace freequency::ui
 
         void paint (juce::Graphics& g) override
         {
-            g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
-            g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+            g.fillAll (theme().panel);
+            g.setColour (theme().outline);
             g.drawHorizontalLine (0, 0.0f, (float) getWidth());
 
             auto r = getLocalBounds().reduced (12, 0);
-            g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+            g.setColour (theme().textDim);
             g.setFont (juce::FontOptions (12.0f));
 
             g.drawText (context.project.name, r.removeFromLeft (220),

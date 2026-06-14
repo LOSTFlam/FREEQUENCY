@@ -30,7 +30,7 @@ namespace freequency::ui
         if (insertList() != nullptr)
         {
             addAndMakeVisible (fxButton);
-            fxButton.setColour (juce::TextButton::buttonColourId, juce::Colour (FreequencyLookAndFeel::panelLight));
+            fxButton.setColour (juce::TextButton::buttonColourId, theme().panelLight);
             fxButton.onClick = [this] { showFxMenu(); };
             buildInsertButtons();
         }
@@ -51,7 +51,7 @@ namespace freequency::ui
             addAndMakeVisible (muteButton);
             muteButton.setClickingTogglesState (true);
             muteButton.setToggleState (track->isMuted(), juce::dontSendNotification);
-            muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
+            muteButton.setColour (juce::TextButton::buttonOnColourId, theme().danger);
             muteButton.onClick = [this]
             {
                 track->setMuted (muteButton.getToggleState());
@@ -61,7 +61,7 @@ namespace freequency::ui
             addAndMakeVisible (soloButton);
             soloButton.setClickingTogglesState (true);
             soloButton.setToggleState (track->isSoloed(), juce::dontSendNotification);
-            soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
+            soloButton.setColour (juce::TextButton::buttonOnColourId, theme().accentWarm);
             soloButton.onClick = [this]
             {
                 track->setSoloed (soloButton.getToggleState());
@@ -143,7 +143,7 @@ namespace freequency::ui
                 lbl->setText (fxBus->name, juce::dontSendNotification);
                 lbl->setFont (juce::FontOptions (9.0f));
                 lbl->setJustificationType (juce::Justification::centred);
-                lbl->setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+                lbl->setColour (juce::Label::textColourId, theme().textDim);
                 addAndMakeVisible (lbl);
 
                 auto* knob = sendKnobs.add (new juce::Slider());
@@ -338,8 +338,7 @@ namespace freequency::ui
 
     void ChannelStrip::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (role == Role::master ? FreequencyLookAndFeel::panelLight
-                                                      : FreequencyLookAndFeel::panel));
+        g.fillAll (role == Role::master ? theme().panelLight : theme().panel);
 
         // Colour band at the top for tracks/buses.
         if (role != Role::master)
@@ -350,19 +349,19 @@ namespace freequency::ui
             g.fillRect (0, 0, getWidth(), 4);
         }
 
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.setColour (theme().outline);
         g.drawVerticalLine (getWidth() - 1, 0.0f, (float) getHeight());
 
         // Meter beside the fader (drawn in the reserved strip on the right of the
         // fader area). Bounds computed to match resized().
         auto meterBounds = meterArea;
-        g.setColour (juce::Colour (FreequencyLookAndFeel::background));
+        g.setColour (theme().background);
         g.fillRect (meterBounds);
 
         const auto level = juce::jlimit (0.0f, 1.0f, meterLevel);
         auto filled = meterBounds.withTop (meterBounds.getBottom() - (int) (meterBounds.getHeight() * level));
-        g.setColour (level > 0.9f ? juce::Colour (FreequencyLookAndFeel::danger)
-                                  : juce::Colour (FreequencyLookAndFeel::accent));
+        g.setColour (level > 0.9f ? theme().danger
+                                  : theme().accent);
         g.fillRect (filled);
     }
 

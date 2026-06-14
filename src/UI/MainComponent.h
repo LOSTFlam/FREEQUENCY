@@ -11,6 +11,7 @@
 #include "UI/PluginEditorWindow.h"
 #include "UI/PianoRollEditor.h"
 #include "UI/MediaBrowser.h"
+#include "UI/AppearancePanel.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -70,6 +71,8 @@ namespace freequency::ui
         void changeTempo (double delta);
 
         void openAudioSettings();
+        void openAppearance();
+        void applyThemeAndRefresh (const Theme&);
 
         // Undo / redo via whole-project ValueTree snapshots.
         void pushUndo();
@@ -102,6 +105,7 @@ namespace freequency::ui
         juce::ApplicationCommandManager commandManager;
         std::unique_ptr<juce::DocumentWindow> keyMappingWindow;
         std::unique_ptr<juce::DocumentWindow> audioSettingsWindow;
+        std::unique_ptr<juce::DocumentWindow> appearanceWindow;
         std::unique_ptr<juce::FileChooser> fileChooser;
 
         std::vector<juce::ValueTree> undoStack, redoStack;

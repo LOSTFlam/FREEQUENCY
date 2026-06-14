@@ -63,7 +63,7 @@ namespace freequency::ui
 
     void MixerView::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+        g.fillAll (theme().background);
     }
 
     void MixerView::resized()

@@ -3,6 +3,7 @@
 #include "Models/Project.h"
 #include "Models/Track.h"
 #include "Engine/AudioEngine.h"
+#include "UI/Theme.h"
 
 #include <functional>
 

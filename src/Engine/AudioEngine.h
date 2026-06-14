@@ -141,6 +141,10 @@ namespace freequency::engine
         /** Peek the master output level (0..1, post-fader) for metering. */
         [[nodiscard]] float getMasterLevel() const noexcept { return masterLevel.load (std::memory_order_relaxed); }
 
+        /** Copy the most recent `numSamples` of master output (mono mix) into
+            `dest` for the spectrum analyzer. Lock-free best-effort (UI thread). */
+        void readScope (float* dest, int numSamples) const noexcept;
+
         // ── Metronome & master limiter ──────────────────────────────────────────
         void setMetronomeEnabled (bool e);
         [[nodiscard]] bool isMetronomeEnabled() const noexcept;
@@ -239,6 +243,12 @@ namespace freequency::engine
         juce::StringArray enabledMidiInputs;
 
         std::atomic<float> masterLevel { 0.0f };
+
+        // Lock-free scope ring for the spectrum analyzer (audio thread writes).
+        static constexpr int scopeSize = 4096;
+        float scopeRing[scopeSize] {};
+        std::atomic<int> scopeWrite { 0 };
+
         bool metronomeOn { false };
         bool limiterOn { true };
         bool running { false };

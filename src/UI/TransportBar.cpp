@@ -10,10 +10,12 @@ namespace freequency::ui
     {
         auto& transport = context.engine.getTransport();
 
+        addAndMakeVisible (spectrum);
+
         addAndMakeVisible (logoLabel);
         logoLabel.setText ("FREEQUENCY", juce::dontSendNotification);
         logoLabel.setFont (juce::FontOptions (16.0f, juce::Font::bold));
-        logoLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
+        logoLabel.setColour (juce::Label::textColourId, theme().accent);
 
         addAndMakeVisible (playButton);
         playButton.setClickingTogglesState (true);
@@ -35,7 +37,7 @@ namespace freequency::ui
 
         addAndMakeVisible (recordButton);
         recordButton.setClickingTogglesState (true);
-        recordButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
+        recordButton.setColour (juce::TextButton::buttonOnColourId, theme().danger);
         recordButton.onClick = [this]
         {
             auto& t = context.engine.getTransport();
@@ -96,7 +98,7 @@ namespace freequency::ui
         addAndMakeVisible (snapCaption);
         snapCaption.setText ("Snap", juce::dontSendNotification);
         snapCaption.setFont (juce::FontOptions (11.0f));
-        snapCaption.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+        snapCaption.setColour (juce::Label::textColourId, theme().textDim);
 
         addAndMakeVisible (snapBox);
         snapBox.addItemList ({ "Off", "Bar", "1/2", "1/4", "1/8", "1/16" }, 1);
@@ -137,6 +139,9 @@ namespace freequency::ui
         addAndMakeVisible (browseButton);
         browseButton.setClickingTogglesState (true);
         browseButton.onClick = [this] { if (onToggleBrowser) onToggleBrowser(); };
+
+        addAndMakeVisible (themeButton);
+        themeButton.onClick = [this] { if (onOpenAppearance) onOpenAppearance(); };
 
         addAndMakeVisible (saveButton);
         saveButton.onClick = [this]
@@ -183,12 +188,12 @@ namespace freequency::ui
         addAndMakeVisible (positionLabel);
         positionLabel.setJustificationType (juce::Justification::centred);
         positionLabel.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 22.0f, juce::Font::bold));
-        positionLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
+        positionLabel.setColour (juce::Label::textColourId, theme().accent);
 
         addAndMakeVisible (tempoCaption);
         tempoCaption.setText ("BPM", juce::dontSendNotification);
         tempoCaption.setJustificationType (juce::Justification::centredLeft);
-        tempoCaption.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+        tempoCaption.setColour (juce::Label::textColourId, theme().textDim);
         tempoCaption.setFont (juce::FontOptions (11.0f));
 
         addAndMakeVisible (tempoLabel);
@@ -273,39 +278,22 @@ namespace freequency::ui
         positionLabel.setText (juce::String::formatted ("%03d.%d.%03d", bar, beat, tick),
                                juce::dontSendNotification);
 
-        const auto newLevel = context.engine.getMasterLevel();
-        if (std::abs (newLevel - meterLevel) > 0.001f)
-        {
-            meterLevel = newLevel;
-            repaint();
-        }
     }
 
     void TransportBar::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.fillAll (theme().panel);
+        g.setColour (theme().outline);
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
-
-        // Master meter (right side).
-        auto meterArea = getLocalBounds().removeFromRight (140).reduced (12, 16);
-        g.setColour (juce::Colour (FreequencyLookAndFeel::background));
-        g.fillRoundedRectangle (meterArea.toFloat(), 3.0f);
-
-        const auto level = juce::jlimit (0.0f, 1.0f, meterLevel);
-        auto filled = meterArea.toFloat().withWidth (meterArea.getWidth() * level);
-        const auto meterColour = level > 0.9f ? juce::Colour (FreequencyLookAndFeel::danger)
-                                              : juce::Colour (FreequencyLookAndFeel::accent);
-        g.setColour (meterColour);
-        g.fillRoundedRectangle (filled, 3.0f);
     }
 
     void TransportBar::resized()
     {
         auto r = getLocalBounds().reduced (8, 8);
 
-        // Reserve the meter strip on the far right (painted in paint()).
-        r.removeFromRight (148);
+        // Spectrum analyzer on the far right (the FREEQUENCY flourish).
+        spectrum.setBounds (r.removeFromRight (200).reduced (4, 8));
+        r.removeFromRight (6);
 
         auto button = [&r] (juce::Component& c, int w)
         {
@@ -343,5 +331,6 @@ namespace freequency::ui
         button (keysButton, 52);
         button (audioButton, 58);
         button (browseButton, 62);
+        button (themeButton, 56);
     }
 } // namespace freequency::ui

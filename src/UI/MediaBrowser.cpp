@@ -24,7 +24,7 @@ namespace freequency::ui
         hint.setText ("Double-click to preview · drag onto an audio track",
                       juce::dontSendNotification);
         hint.setFont (juce::FontOptions (10.0f));
-        hint.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+        hint.setColour (juce::Label::textColourId, theme().textDim);
 
         // Default root: the user's Music folder (or home).
         auto root = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
@@ -61,11 +61,11 @@ namespace freequency::ui
 
     void MediaBrowser::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.fillAll (theme().panel);
+        g.setColour (theme().outline);
         g.drawVerticalLine (getWidth() - 1, 0.0f, (float) getHeight());
 
-        g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+        g.setColour (theme().textDim);
         g.setFont (juce::FontOptions (11.0f));
         g.drawText ("BROWSER", getLocalBounds().removeFromTop (22).reduced (10, 0),
                     juce::Justification::centredLeft, false);
