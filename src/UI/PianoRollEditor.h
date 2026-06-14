@@ -2,6 +2,7 @@
 
 #include "UI/UIContext.h"
 #include "Models/Clip.h"
+#include "Models/HarmonicEdit.h"
 #include "Models/Track.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -43,6 +44,14 @@ namespace freequency::ui
             int    velocity { 100 };
             bool   slide { false };
             bool   selected { false };
+        };
+
+        struct GhostNote
+        {
+            double startBeats { 0.0 };
+            double lengthBeats { 0.25 };
+            int    pitch { 60 };
+            juce::Colour colour { juce::Colours::grey };
         };
 
         // The interactive grid (notes + velocity lane).
@@ -106,6 +115,7 @@ namespace freequency::ui
         [[nodiscard]] double clipLengthBeats() const;
 
         void loadFromClip();
+        void loadGhostNotes();
         void writeBackToClip();
         void applyArpeggiator();
         void quantizeSelected();
@@ -122,6 +132,8 @@ namespace freequency::ui
         models::Track& track;
 
         std::vector<Note> notes;
+        std::vector<GhostNote> ghostNotes;
+        models::GhostNoteConfig ghostConfig;
 
         double pxPerBeat { 64.0 };
         int noteHeight { 12 };
@@ -133,6 +145,7 @@ namespace freequency::ui
         juce::TextButton arpButton { "Arp" };
         juce::TextButton slideButton { "Slide" };
         juce::TextButton quantButton { "Quant" };
+        juce::TextButton ghostButton { "Ghost" };
         juce::ComboBox snapBox;
 
         Keys keysComp { *this };

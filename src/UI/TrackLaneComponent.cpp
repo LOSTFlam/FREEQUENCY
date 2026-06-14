@@ -1,5 +1,7 @@
 #include "UI/TrackLaneComponent.h"
 #include "UI/FreequencyLookAndFeel.h"
+#include "Models/MidiTrack.h"
+#include "Models/PatternExpander.h"
 
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
@@ -240,6 +242,8 @@ namespace freequency::ui
 
             if (auto* midiClip = dynamic_cast<models::MidiClip*> (clip))
                 drawMidiClip (g, *midiClip, clipBounds);
+            else if (auto* patClip = dynamic_cast<models::PatternClip*> (clip))
+                drawPatternClip (g, *patClip, clipBounds);
             else if (auto* audioClip = dynamic_cast<models::AudioClip*> (clip))
                 drawAudioClip (g, *audioClip, audioClipIndex++, clipBounds);
         }
@@ -488,6 +492,66 @@ namespace freequency::ui
             const float t = 1.0f - (float) (on->message.getNoteNumber() - lowNote) / (float) span;
             const int ny = clipBounds.getY() + (int) (t * (clipBounds.getHeight() - 4)) + 1;
 
+            g.fillRoundedRectangle ((float) nx, (float) ny, (float) nw, 3.0f, 1.0f);
+        }
+    }
+
+    void TrackLaneComponent::drawPatternClip (juce::Graphics& g, models::PatternClip& clip,
+                                              juce::Rectangle<int> clipBounds)
+    {
+        auto* pattern = context.project.findPattern (clip.patternId);
+        if (pattern == nullptr || clip.length <= 0.0)
+            return;
+
+        const double tempo = context.project.getTimeline().getTempoBpm();
+        const double clipLen = clip.length;
+
+        // Step-grid backdrop (FL-style pattern block).
+        const int stepCount = juce::jmax (1, pattern->getStepCount());
+        const double secPerBeat = 60.0 / juce::jmax (1.0, tempo);
+        const double patternSec = pattern->lengthInBeats * secPerBeat;
+        const int loops = juce::jmax (1, (int) std::ceil (clipLen / patternSec));
+        const int totalSteps = stepCount * loops;
+        const float stepW = (float) clipBounds.getWidth() / (float) juce::jmax (1, totalSteps);
+
+        g.setColour (theme().background.withAlpha (0.35f));
+        g.fillRect (clipBounds);
+
+        for (int s = 0; s < totalSteps; ++s)
+        {
+            const bool barStep = (s % pattern->stepsPerBar) == 0;
+            const float x = (float) clipBounds.getX() + s * stepW;
+            g.setColour (barStep ? theme().outline.withAlpha (0.55f)
+                                 : theme().outline.withAlpha (0.2f));
+            g.drawVerticalLine ((int) x, (float) clipBounds.getY(),
+                                (float) clipBounds.getBottom());
+        }
+
+        // Mini note preview from expanded pattern.
+        juce::Array<models::PatternExpander::PreviewNote> preview;
+        models::PatternExpander::collectPreviewNotes (*pattern, preview, clipLen, tempo);
+
+        int lowNote = 127, highNote = 0;
+        for (const auto& n : preview)
+        {
+            lowNote = juce::jmin (lowNote, n.pitch);
+            highNote = juce::jmax (highNote, n.pitch);
+        }
+        if (preview.isEmpty())
+        {
+            lowNote = 36; highNote = 48;
+        }
+        const auto span = juce::jmax (1, highNote - lowNote);
+        const auto pxPerSecInClip = (double) clipBounds.getWidth() / clipLen;
+
+        g.setColour (pattern->colour.withAlpha (0.85f));
+        for (const auto& n : preview)
+        {
+            const double startSec = n.startBeats * secPerBeat;
+            const int nx = clipBounds.getX() + (int) (startSec * pxPerSecInClip);
+            const int nw = juce::jmax (2, (int) (n.lengthBeats * secPerBeat * pxPerSecInClip));
+            const float t = 1.0f - (float) (n.pitch - lowNote) / (float) span;
+            const int ny = clipBounds.getY() + (int) (t * (clipBounds.getHeight() - 4)) + 1;
             g.fillRoundedRectangle ((float) nx, (float) ny, (float) nw, 3.0f, 1.0f);
         }
     }

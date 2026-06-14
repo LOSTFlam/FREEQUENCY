@@ -23,6 +23,9 @@ namespace freequency::models
         OMNI_ID (time) OMNI_ID (value) OMNI_ID (data) OMNI_ID (bus) OMNI_ID (level)
         OMNI_ID (refs) OMNI_ID (scsrc) OMNI_ID (stretch) OMNI_ID (pitch)
         OMNI_ID (takes) OMNI_ID (activeTake)
+        OMNI_ID (patternId) OMNI_ID (stepsPerBar) OMNI_ID (lengthBeats)
+        OMNI_ID (channel) OMNI_ID (rootNote) OMNI_ID (on)
+        OMNI_ID (PATTERN) OMNI_ID (CHANNEL) OMNI_ID (STEP)
         #undef OMNI_ID
     }
 
@@ -168,6 +171,11 @@ namespace freequency::models
                         clipTree.appendChild (evTree, nullptr);
                     }
                 }
+                else if (auto* patClip = dynamic_cast<PatternClip*> (clip))
+                {
+                    clipTree.setProperty (kind, "pattern", nullptr);
+                    clipTree.setProperty (patternId, patClip->patternId, nullptr);
+                }
 
                 trackTree.appendChild (clipTree, nullptr);
             }
@@ -175,6 +183,58 @@ namespace freequency::models
             timelineTree.appendChild (trackTree, nullptr);
         }
         root.appendChild (timelineTree, nullptr);
+
+        // Patterns (FL channel rack).
+        for (int i = 0; i < project.getNumPatterns(); ++i)
+        {
+            auto* pattern = project.getPattern (i);
+            if (pattern == nullptr)
+                continue;
+
+            juce::ValueTree patTree (PATTERN);
+            patTree.setProperty (id, pattern->getId().toDashedString(), nullptr);
+            patTree.setProperty (name, pattern->name, nullptr);
+            patTree.setProperty (colour, pattern->colour.toString(), nullptr);
+            patTree.setProperty (stepsPerBar, pattern->stepsPerBar, nullptr);
+            patTree.setProperty (length, pattern->lengthInBeats, nullptr);
+
+            for (int ch = 0; ch < pattern->getNumChannels(); ++ch)
+            {
+                const auto& channel = pattern->getChannel (ch);
+                juce::ValueTree chTree (CHANNEL);
+                chTree.setProperty (name, channel.name, nullptr);
+                chTree.setProperty (instrument, channel.instrumentPluginIdentifier, nullptr);
+
+                if (auto* steps = std::get_if<StepSequence> (&channel.content))
+                {
+                    chTree.setProperty (kind, "step", nullptr);
+                    chTree.setProperty (rootNote, steps->rootNote, nullptr);
+                    for (int s = 0; s < (int) steps->steps.size(); ++s)
+                    {
+                        juce::ValueTree stepTree (STEP);
+                        stepTree.setProperty (on, steps->steps[(size_t) s].on, nullptr);
+                        stepTree.setProperty (value, steps->steps[(size_t) s].velocity, nullptr);
+                        chTree.appendChild (stepTree, nullptr);
+                    }
+                }
+                else if (auto* notes = std::get_if<NoteSequence> (&channel.content))
+                {
+                    chTree.setProperty (kind, "note", nullptr);
+                    for (int e = 0; e < notes->notes.getNumEvents(); ++e)
+                    {
+                        auto& msg = notes->notes.getEventPointer (e)->message;
+                        juce::ValueTree evTree (EVENT);
+                        evTree.setProperty (time, msg.getTimeStamp(), nullptr);
+                        evTree.setProperty (data, hexFromMidi (msg), nullptr);
+                        chTree.appendChild (evTree, nullptr);
+                    }
+                }
+
+                patTree.appendChild (chTree, nullptr);
+            }
+
+            root.appendChild (patTree, nullptr);
+        }
 
         return root;
     }
@@ -216,6 +276,75 @@ namespace freequency::models
                 bus->colour = juce::Colour::fromString (busTree.getProperty (colour, "ff808080").toString());
                 bus->setVolume ((float) (double) busTree.getProperty (volume, 1.0));
                 busIdRemap[oldId.toStdString()] = bus->getId().toDashedString();
+            }
+        }
+
+        // Patterns.
+        std::unordered_map<std::string, juce::String> patternIdRemap;
+        for (int i = 0; i < root.getNumChildren(); ++i)
+        {
+            auto child = root.getChild (i);
+            if (! child.hasType (PATTERN))
+                continue;
+
+            auto& pat = project.addPattern();
+            const auto oldId = child.getProperty (id).toString();
+            patternIdRemap[oldId.toStdString()] = pat.getId().toDashedString();
+
+            pat.name = child.getProperty (name, pat.name).toString();
+            pat.colour = juce::Colour::fromString (child.getProperty (colour, "ff808080").toString());
+            pat.stepsPerBar = (int) child.getProperty (stepsPerBar, 16);
+            pat.lengthInBeats = child.getProperty (length, 4.0);
+
+            for (int c = 0; c < child.getNumChildren(); ++c)
+            {
+                auto chTree = child.getChild (c);
+                if (! chTree.hasType (CHANNEL))
+                    continue;
+
+                const auto chName = chTree.getProperty (name, "Channel").toString();
+                const auto chKind = chTree.getProperty (kind, "step").toString();
+
+                if (chKind == "note")
+                {
+                    auto& ch = pat.addNoteChannel (chName);
+                    ch.instrumentPluginIdentifier = chTree.getProperty (instrument, "").toString();
+                    if (auto* notes = std::get_if<NoteSequence> (&ch.content))
+                    {
+                        for (int e = 0; e < chTree.getNumChildren(); ++e)
+                        {
+                            auto ev = chTree.getChild (e);
+                            if (ev.hasType (EVENT))
+                                notes->notes.addEvent (
+                                    midiFromHex (ev.getProperty (data).toString(),
+                                                 ev.getProperty (time, 0.0)));
+                        }
+                        notes->notes.updateMatchedPairs();
+                    }
+                }
+                else
+                {
+                    const int rootPitch = (int) chTree.getProperty (rootNote, 60);
+                    auto& ch = pat.addStepChannel (chName, rootPitch);
+                    ch.instrumentPluginIdentifier = chTree.getProperty (instrument, "").toString();
+                    if (auto* seq = std::get_if<StepSequence> (&ch.content))
+                    {
+                        seq->steps.resize ((size_t) pat.getStepCount());
+                        int stepIdx = 0;
+                        for (int s = 0; s < chTree.getNumChildren(); ++s)
+                        {
+                            auto stepTree = chTree.getChild (s);
+                            if (! stepTree.hasType (STEP))
+                                continue;
+                            if (stepIdx < (int) seq->steps.size())
+                            {
+                                seq->steps[(size_t) stepIdx].on = (bool) stepTree.getProperty (on, false);
+                                seq->steps[(size_t) stepIdx].velocity = (float) (double) stepTree.getProperty (value, 0.8);
+                            }
+                            ++stepIdx;
+                        }
+                    }
+                }
             }
         }
 
@@ -280,14 +409,15 @@ namespace freequency::models
                 }
                 else if (child.hasType (CLIP))
                 {
-                    const bool clipIsAudio = child.getProperty (kind, "audio").toString() == "audio";
+                    const auto kindStr = child.getProperty (kind, "audio").toString();
 
-                    if (clipIsAudio)
+                    if (kindStr == "audio")
                     {
                         if (auto* at = dynamic_cast<AudioTrack*> (track))
                         {
                             auto* clip = at->addClip();
                             clip->name = child.getProperty (name, "Clip").toString();
+                            clip->colour = juce::Colour::fromString (child.getProperty (colour, "ff808080").toString());
                             clip->startTime = child.getProperty (start, 0.0);
                             clip->length = child.getProperty (length, 0.0);
                             clip->sourceFile = juce::File (child.getProperty (file, "").toString());
@@ -301,12 +431,27 @@ namespace freequency::models
                             clip->activeTake = (int) child.getProperty (activeTake, 0);
                         }
                     }
+                    else if (kindStr == "pattern")
+                    {
+                        if (auto* mt = dynamic_cast<MidiTrack*> (track))
+                        {
+                            auto* clip = mt->addPatternClip();
+                            clip->name = child.getProperty (name, "Pattern").toString();
+                            clip->colour = juce::Colour::fromString (child.getProperty (colour, "ff808080").toString());
+                            clip->startTime = child.getProperty (start, 0.0);
+                            clip->length = child.getProperty (length, 0.0);
+                            const auto oldPatId = child.getProperty (patternId, "").toString();
+                            const auto it = patternIdRemap.find (oldPatId.toStdString());
+                            clip->patternId = it != patternIdRemap.end() ? it->second : oldPatId;
+                        }
+                    }
                     else
                     {
                         if (auto* mt = dynamic_cast<MidiTrack*> (track))
                         {
                             auto* clip = mt->addClip();
                             clip->name = child.getProperty (name, "Clip").toString();
+                            clip->colour = juce::Colour::fromString (child.getProperty (colour, "ff808080").toString());
                             clip->startTime = child.getProperty (start, 0.0);
                             clip->length = child.getProperty (length, 0.0);
 

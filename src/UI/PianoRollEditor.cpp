@@ -1,5 +1,7 @@
 #include "UI/PianoRollEditor.h"
 #include "UI/FreequencyLookAndFeel.h"
+#include "Models/MidiTrack.h"
+#include "Models/PatternExpander.h"
 
 #include <cmath>
 
@@ -35,6 +37,19 @@ namespace freequency::ui
         addAndMakeVisible (quantButton);
         quantButton.onClick = [this] { quantizeSelected(); };
 
+        addAndMakeVisible (ghostButton);
+        ghostButton.setClickingTogglesState (true);
+        ghostButton.setToggleState (true, juce::dontSendNotification);
+        ghostButton.setColour (juce::TextButton::buttonOnColourId, theme().accent.withAlpha (0.55f));
+        ghostButton.onClick = [this]
+        {
+            ghostConfig.showOtherTracks = ghostButton.getToggleState();
+            ghostConfig.showPatternClips = ghostButton.getToggleState();
+            loadGhostNotes();
+            gridComp.repaint();
+            velLane.repaint();
+        };
+
         addAndMakeVisible (snapBox);
         snapBox.addItemList ({ "1/4", "1/8", "1/16", "1/32", "Off" }, 1);
         snapBox.setSelectedId (3, juce::dontSendNotification); // 1/16
@@ -67,6 +82,7 @@ namespace freequency::ui
         addAndMakeVisible (velLane);
 
         loadFromClip();
+        loadGhostNotes();
         startTimerHz (30);
         setWantsKeyboardFocus (true);
 
@@ -113,6 +129,108 @@ namespace freequency::ui
                                 ? (on->noteOffObject->message.getTimeStamp() - on->message.getTimeStamp()) * beatsPerSec
                                 : snapGrid > 0 ? snapGrid : 0.5;
             notes.push_back (n);
+        }
+    }
+
+    void PianoRollEditor::loadGhostNotes()
+    {
+        ghostNotes.clear();
+
+        const bool anySource = ghostConfig.showOtherTracks || ghostConfig.showPatternClips
+                               || ghostConfig.showSameTrackClips;
+        if (! anySource)
+            return;
+
+        const double tempo = context.project.getTimeline().getTempoBpm();
+        const double bps = tempo / 60.0;
+        const double clipStart = clip.startTime;
+        const double clipEnd = clipStart + juce::jmax (clip.length, 0.25);
+
+        auto addFromSequence = [&] (const juce::MidiMessageSequence& seq, double sourceStart,
+                                    juce::Colour col)
+        {
+            for (int i = 0; i < seq.getNumEvents(); ++i)
+            {
+                auto* on = seq.getEventPointer (i);
+                if (! on->message.isNoteOn())
+                    continue;
+
+                const double absSec = sourceStart + on->message.getTimeStamp();
+                if (absSec < clipStart - 0.001 || absSec >= clipEnd)
+                    continue;
+
+                GhostNote gn;
+                gn.startBeats = (absSec - clipStart) * bps;
+                gn.pitch = on->message.getNoteNumber();
+                gn.colour = col;
+
+                if (on->noteOffObject != nullptr)
+                    gn.lengthBeats = (on->noteOffObject->message.getTimeStamp()
+                                      - on->message.getTimeStamp()) * bps;
+                else
+                    gn.lengthBeats = 0.25;
+
+                ghostNotes.push_back (gn);
+            }
+        };
+
+        const auto& timeline = context.project.getTimeline();
+        for (int ti = 0; ti < timeline.getNumTracks(); ++ti)
+        {
+            auto* tr = timeline.getTrack (ti);
+            auto* mt = dynamic_cast<models::MidiTrack*> (tr);
+            if (mt == nullptr)
+                continue;
+
+            const bool sameTrack = (tr == &track);
+
+            for (int ci = 0; ci < mt->getNumClips(); ++ci)
+            {
+                auto* c = mt->getClip (ci);
+                if (c == nullptr || c == &clip)
+                    continue;
+
+                const double cStart = c->startTime;
+                const double cLen = c->length > 0.0 ? c->length : 4.0;
+                if (cStart + cLen <= clipStart || cStart >= clipEnd)
+                    continue;
+
+                if (auto* midi = dynamic_cast<models::MidiClip*> (c))
+                {
+                    if (sameTrack && ! ghostConfig.showSameTrackClips)
+                        continue;
+                    if (! sameTrack && ! ghostConfig.showOtherTracks)
+                        continue;
+
+                    addFromSequence (midi->sequence, cStart, tr->colour);
+                }
+                else if (auto* patClip = dynamic_cast<models::PatternClip*> (c))
+                {
+                    if (! ghostConfig.showPatternClips)
+                        continue;
+
+                    auto* pattern = context.project.findPattern (patClip->patternId);
+                    if (pattern == nullptr)
+                        continue;
+
+                    juce::Array<models::PatternExpander::PreviewNote> preview;
+                    models::PatternExpander::collectPreviewNotes (*pattern, preview, cLen, tempo);
+
+                    for (const auto& pn : preview)
+                    {
+                        const double absSec = cStart + pn.startBeats / bps;
+                        if (absSec < clipStart - 0.001 || absSec >= clipEnd)
+                            continue;
+
+                        GhostNote gn;
+                        gn.startBeats = (absSec - clipStart) * bps;
+                        gn.pitch = pn.pitch;
+                        gn.lengthBeats = pn.lengthBeats;
+                        gn.colour = pattern->colour;
+                        ghostNotes.push_back (gn);
+                    }
+                }
+            }
         }
     }
 
@@ -315,6 +433,8 @@ namespace freequency::ui
         slideButton.setBounds (toolbar.removeFromLeft (60));
         toolbar.removeFromLeft (6);
         quantButton.setBounds (toolbar.removeFromLeft (60));
+        toolbar.removeFromLeft (6);
+        ghostButton.setBounds (toolbar.removeFromLeft (64));
 
         auto velArea = r.removeFromBottom (velLaneH);
         velArea.removeFromLeft (gutterW);
@@ -397,6 +517,20 @@ namespace freequency::ui
             const bool bar = (b % beatsPerBar) == 0;
             g.setColour (theme().outline.withAlpha (bar ? 0.8f : 0.35f));
             g.drawVerticalLine (x, 0.0f, (float) getHeight());
+        }
+
+        // Ghost notes (read-only context from other clips / patterns).
+        for (const auto& gn : owner.ghostNotes)
+        {
+            const int x = owner.beatsToX (gn.startBeats);
+            const int w = juce::jmax (3, owner.beatsToX (gn.lengthBeats));
+            const int y = owner.pitchToY (gn.pitch);
+            auto bounds = juce::Rectangle<int> (x, y, w, owner.noteHeight - 1).toFloat();
+
+            g.setColour (gn.colour.withAlpha (owner.ghostConfig.opacity));
+            g.fillRoundedRectangle (bounds, 2.0f);
+            g.setColour (gn.colour.withAlpha (owner.ghostConfig.opacity * 0.6f));
+            g.drawRoundedRectangle (bounds.reduced (0.5f), 2.0f, 0.8f);
         }
 
         // Notes.
@@ -529,6 +663,15 @@ namespace freequency::ui
         g.fillAll (theme().panel);
         g.setColour (theme().outline);
         g.drawHorizontalLine (0, 0.0f, (float) getWidth());
+
+        for (const auto& gn : owner.ghostNotes)
+        {
+            const int x = owner.beatsToX (gn.startBeats) - viewOffsetX;
+            if (x < -4 || x > getWidth()) continue;
+            const int h = (int) (owner.ghostConfig.opacity * (getHeight() - 6));
+            g.setColour (gn.colour.withAlpha (owner.ghostConfig.opacity * 0.5f));
+            g.fillRect (x, getHeight() - h - 2, 3, h);
+        }
 
         for (const auto& n : owner.notes)
         {

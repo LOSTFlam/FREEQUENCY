@@ -57,6 +57,7 @@ namespace freequency::ui
 
         void changeListenerCallback (juce::ChangeBroadcaster*) override;
         void drawMidiClip (juce::Graphics&, models::MidiClip&, juce::Rectangle<int> clipBounds);
+        void drawPatternClip (juce::Graphics&, models::PatternClip&, juce::Rectangle<int> clipBounds);
         void drawAudioClip (juce::Graphics&, models::AudioClip&, int clipIndex, juce::Rectangle<int> clipBounds);
         void drawAutomation (juce::Graphics&);
         void drawTrimHandles (juce::Graphics&, juce::Rectangle<int> clipBounds, bool selected);

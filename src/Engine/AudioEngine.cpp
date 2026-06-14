@@ -2,6 +2,7 @@
 
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
+#include "Models/PatternExpander.h"
 #include "DSP/BuiltinEffects.h"
 #include "DSP/TimeStretch.h"
 
@@ -478,17 +479,41 @@ namespace freequency::engine
 
                 for (int c = 0; c < midiTrack->getNumClips(); ++c)
                 {
-                    auto* clip = dynamic_cast<models::MidiClip*> (midiTrack->getClip (c));
+                    auto* clip = midiTrack->getClip (c);
                     if (clip == nullptr)
                         continue;
 
-                    const auto clipStartSamples = clip->startTime * sr;
+                    const auto clipStartSamples = (juce::int64) (clip->startTime * sr);
+                    const double clipLenSec = clip->length > 0.0 ? clip->length : 4.0;
+                    const double tempo = currentProject->getTimeline().getTempoBpm();
 
-                    for (int e = 0; e < clip->sequence.getNumEvents(); ++e)
+                    if (auto* midiClip = dynamic_cast<models::MidiClip*> (clip))
                     {
-                        auto m = clip->sequence.getEventPointer (e)->message;
-                        m.setTimeStamp (clipStartSamples + m.getTimeStamp() * sr);
-                        snapshot->events.addEvent (m);
+                        for (int e = 0; e < midiClip->sequence.getNumEvents(); ++e)
+                        {
+                            auto m = midiClip->sequence.getEventPointer (e)->message;
+                            m.setTimeStamp (clipStartSamples + m.getTimeStamp() * sr);
+                            snapshot->events.addEvent (m);
+                        }
+                    }
+                    else if (auto* patClip = dynamic_cast<models::PatternClip*> (clip))
+                    {
+                        if (currentProject == nullptr)
+                            continue;
+
+                        auto* pattern = currentProject->findPattern (patClip->patternId);
+                        if (pattern == nullptr)
+                            continue;
+
+                        juce::MidiMessageSequence expanded;
+                        models::PatternExpander::expandToSequence (*pattern, expanded, clipLenSec, tempo);
+
+                        for (int e = 0; e < expanded.getNumEvents(); ++e)
+                        {
+                            auto m = expanded.getEventPointer (e)->message;
+                            m.setTimeStamp (clipStartSamples + m.getTimeStamp() * sr);
+                            snapshot->events.addEvent (m);
+                        }
                     }
                 }
 

@@ -3,6 +3,7 @@
 #include "Models/MidiTrack.h"
 #include "Models/AudioTrack.h"
 #include "Models/ProjectSerializer.h"
+#include "Models/Pattern.h"
 
 namespace freequency::ui
 {
@@ -155,6 +156,37 @@ namespace freequency::ui
             clip->startTime = 0.0;
             const int notes[] = { 36, 36, 43, 36 };
             fillPattern (*clip, 120.0, 2, notes, 4);
+        }
+
+        // FL-style reusable pattern placed on the timeline as a PatternClip.
+        auto& drumPat = project.addPattern();
+        drumPat.name = "Drums";
+        drumPat.lengthInBeats = 4.0;
+        drumPat.colour = juce::Colour (0xff2dd4bf);
+        {
+            auto& kick = drumPat.addStepChannel ("Kick", 36);
+            if (auto* seq = std::get_if<models::StepSequence> (&kick.content))
+            {
+                for (int i : { 0, 4, 8, 12 })
+                    if (i < (int) seq->steps.size())
+                        seq->steps[(size_t) i].on = true;
+            }
+            auto& hat = drumPat.addStepChannel ("Hat", 42);
+            if (auto* seq = std::get_if<models::StepSequence> (&hat.content))
+            {
+                for (int i = 0; i < (int) seq->steps.size(); i += 2)
+                    seq->steps[(size_t) i].on = true;
+            }
+        }
+
+        auto* drums = timeline.addMidiTrack();
+        drums->name = "Drums";
+        {
+            auto* patClip = drums->addPatternClip();
+            patClip->name = "Drums";
+            patClip->patternId = drumPat.getId().toDashedString();
+            patClip->startTime = 0.0;
+            patClip->length = 8.0; // two bars at 120 BPM
         }
 
         auto* audio = timeline.addAudioTrack();

@@ -168,6 +168,31 @@ namespace freequency
                           << (ok ? "[PASS]" : "[FAIL]") << std::endl;
             }
 
+            // PatternClip playback: step pattern expanded into MIDI must render sound.
+            {
+                models::Project p;
+                p.getTimeline().setTempoBpm (120.0);
+
+                auto& pat = p.addPattern();
+                auto& ch = pat.addStepChannel ("Kick", 36);
+                if (auto* seq = std::get_if<models::StepSequence> (&ch.content))
+                    if (! seq->steps.empty())
+                        seq->steps[0].on = true;
+
+                auto* mt = p.getTimeline().addMidiTrack();
+                auto* pc = mt->addPatternClip();
+                pc->patternId = pat.getId().toDashedString();
+                pc->startTime = 0.0;
+                pc->length = 2.0;
+
+                engine::AudioEngine e;
+                e.setProject (&p);
+                const float patPeak = e.renderOfflinePeak (44100.0, 1.0);
+                std::cout << "FREEQUENCY self-test: pattern clip peak = " << patPeak
+                          << (patPeak > 0.0001f ? "  [PASS]" : "  [FAIL: silence]")
+                          << std::endl;
+            }
+
             // Built-in effect: a Utility insert turned down to -60 dB must nearly
             // silence the track, proving built-in FX run in the insert chain and
             // their parameters are live.

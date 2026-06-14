@@ -14,4 +14,11 @@ namespace freequency::models
         auto* raw = static_cast<MidiClip*> (addClipInternal (std::move (clip)));
         return raw;
     }
+
+    PatternClip* MidiTrack::addPatternClip()
+    {
+        auto clip = std::make_unique<PatternClip>();
+        auto* raw = static_cast<PatternClip*> (addClipInternal (std::move (clip)));
+        return raw;
+    }
 } // namespace freequency::models

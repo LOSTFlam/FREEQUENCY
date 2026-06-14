@@ -24,6 +24,9 @@ namespace freequency::models
         /** Creates and appends a new MidiClip, returning a non-owning pointer. */
         MidiClip* addClip();
 
+        /** Creates a PatternClip referencing a reusable Pattern on the timeline. */
+        PatternClip* addPatternClip();
+
         /** Identifier of the instrument plugin assigned to this track.
             Empty until an instrument is loaded in Phase 2. We store the plugin's
             file/identifier string rather than a live pointer so the model stays

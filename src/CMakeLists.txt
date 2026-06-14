@@ -84,6 +84,7 @@ freequency_add_library(FreequencyCore
     Models/AudioTrack.cpp
     Models/MidiTrack.cpp
     Models/Pattern.cpp
+    Models/PatternExpander.cpp
     Models/Timeline.cpp
     Models/Mixer.cpp
     Models/Project.cpp
