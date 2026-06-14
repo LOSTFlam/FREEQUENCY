@@ -21,6 +21,12 @@ namespace freequency::ui
         void paint (juce::Graphics& g) override
         {
             g.fillAll (theme().panel);
+
+            juce::ColourGradient edge (theme().accent.withAlpha (0.35f), 0.0f, 0.0f,
+                                       theme().accentWarm.withAlpha (0.0f), (float) getWidth(), 0.0f, false);
+            g.setGradientFill (edge);
+            g.fillRect (0, 0, getWidth(), 1);
+
             g.setColour (theme().outline);
             g.drawHorizontalLine (0, 0.0f, (float) getWidth());
 

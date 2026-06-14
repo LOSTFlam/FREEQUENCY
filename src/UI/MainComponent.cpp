@@ -395,7 +395,17 @@ namespace freequency::ui
 
     void MainComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (theme().background);
+        const auto& th = theme();
+        juce::ColourGradient bg (th.background.brighter (0.04f), 0.0f, 0.0f,
+                                 th.background.darker (0.06f), 0.0f, (float) getHeight(), false);
+        g.setGradientFill (bg);
+        g.fillAll();
+
+        // Subtle void aurora corners
+        g.setColour (th.accentWarm.withAlpha (0.04f));
+        g.fillEllipse ((float) getWidth() * 0.72f, -80.0f, 360.0f, 360.0f);
+        g.setColour (th.accent.withAlpha (0.05f));
+        g.fillEllipse (-120.0f, (float) getHeight() * 0.55f, 420.0f, 420.0f);
     }
 
     void MainComponent::resized()

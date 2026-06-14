@@ -283,6 +283,23 @@ namespace freequency::ui
     void TransportBar::paint (juce::Graphics& g)
     {
         g.fillAll (theme().panel);
+
+        // Spectral aurora reflection strip (PRODUCT_VISION)
+        {
+            juce::ColourGradient aurora (theme().accent.withAlpha (0.18f), 0.0f, 0.0f,
+                                         theme().accentWarm.withAlpha (0.0f), 0.0f, 14.0f, false);
+            g.setGradientFill (aurora);
+            g.fillRect (0.0f, 0.0f, (float) getWidth(), 14.0f);
+        }
+
+        // Glass specular sheen
+        {
+            juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.07f), 0.0f, 0.0f,
+                                        juce::Colours::transparentBlack, 0.0f, 26.0f, false);
+            g.setGradientFill (sheen);
+            g.fillRect (0.0f, 0.0f, (float) getWidth(), 26.0f);
+        }
+
         g.setColour (theme().outline);
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
     }

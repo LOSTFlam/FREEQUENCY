@@ -86,6 +86,8 @@ The UI expresses the Frequency Field metaphor:
 
 Figma source: [FREEQUENCY — Spectral UI](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)
 
+Design build scripts (when Figma MCP is available): `design/figma/01-ui-guide-spotlight.js` … `04-ui-guide-extras.js` — Spotlight, Callout, Fly-beam, Aurora/Ripple atoms, workspace overlay.
+
 ### UI Guide (coach marks)
 
 Animated spectral overlays teach the workspace layout:
