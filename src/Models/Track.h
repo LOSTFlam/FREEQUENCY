@@ -68,6 +68,13 @@ namespace omnidaw::models
         void setMuted  (bool shouldBeMuted) noexcept;
         void setSoloed (bool shouldBeSoloed) noexcept;
 
+        // ── Insert FX chain ───────────────────────────────────────────────────
+        // Ordered list of effect plugins applied in series, post-instrument /
+        // post-clip and pre-fader. We store identifier strings (not live
+        // pointers) so the model stays decoupled from the engine and is trivially
+        // serialisable; the engine resolves them via the PluginManager.
+        juce::StringArray insertPluginIdentifiers;
+
         // ── Clips ─────────────────────────────────────────────────────────────
         [[nodiscard]] int getNumClips() const noexcept { return clips.size(); }
         [[nodiscard]] Clip* getClip (int index) const noexcept { return clips[index]; }

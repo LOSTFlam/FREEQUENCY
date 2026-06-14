@@ -26,6 +26,7 @@ target_sources(OmniDAW PRIVATE
     Engine/MidiSourceProcessor.cpp
     Engine/AudioClipProcessor.cpp
     Engine/SynthProcessor.cpp
+    Engine/PluginManager.cpp
 
     # ── Models ───────────────────────────────────────────────────────────────
     Models/Clip.cpp

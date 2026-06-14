@@ -6,6 +6,7 @@
 #include "Engine/MidiSourceProcessor.h"
 #include "Engine/AudioClipProcessor.h"
 #include "Engine/SynthProcessor.h"
+#include "Engine/PluginManager.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -13,10 +14,10 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace omnidaw::engine
 {
-    class PluginManager; // Phase 2b
 
     /**
         AudioEngine — owns the real-time audio infrastructure of OmniDAW.
@@ -70,6 +71,7 @@ namespace omnidaw::engine
         void syncParametersFromModel();
 
         [[nodiscard]] Transport& getTransport() noexcept { return transport; }
+        [[nodiscard]] PluginManager& getPluginManager() noexcept { return pluginManager; }
         [[nodiscard]] models::Project* getProject() const noexcept { return currentProject; }
         [[nodiscard]] bool isRunning() const noexcept { return running; }
         [[nodiscard]] juce::AudioDeviceManager& getDeviceManager() noexcept { return deviceManager; }
@@ -107,11 +109,13 @@ namespace omnidaw::engine
         {
             NodeID strip;       // TrackProcessor (channel strip) — always present
             NodeID source;      // AudioClipProcessor or MidiSourceProcessor
-            NodeID instrument;  // SynthProcessor (MIDI tracks only), else invalid
+            NodeID instrument;  // instrument node (MIDI tracks only), else invalid
+            std::vector<NodeID> inserts; // insert FX nodes, in series
         };
 
         void buildBaseGraph();
         void addTrackChain (models::Track& track);
+        NodeID makeInstrumentNode (models::Track& track); // hosted plugin or built-in synth
         void connectStereo (NodeID source, NodeID destination);
         void connectMidi (NodeID source, NodeID destination);
 
@@ -122,6 +126,7 @@ namespace omnidaw::engine
         void timerCallback() override;
 
         Transport transport;
+        PluginManager pluginManager;
         juce::AudioFormatManager formatManager;
         juce::AudioDeviceManager deviceManager;
         Graph graph;

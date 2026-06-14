@@ -141,32 +141,77 @@ namespace omnidaw::engine
                                { destination, Graph::midiChannelIndex } });
     }
 
+    AudioEngine::NodeID AudioEngine::makeInstrumentNode (models::Track& track)
+    {
+        // A MIDI track plays a hosted VST3/AU instrument if one is assigned and
+        // resolvable, otherwise it falls back to the built-in OmniSynth so the
+        // track is always audible.
+        if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&track))
+        {
+            if (midiTrack->instrumentPluginIdentifier.isNotEmpty())
+            {
+                juce::String error;
+                auto instance = pluginManager.createInstance (midiTrack->instrumentPluginIdentifier,
+                                                              currentSampleRate, currentBlockSize, error);
+                if (instance != nullptr)
+                    return graph.addNode (std::move (instance))->nodeID;
+
+                DBG ("OmniDAW: instrument load failed (" << error << "), using built-in synth");
+            }
+        }
+
+        return graph.addNode (std::make_unique<SynthProcessor>())->nodeID;
+    }
+
     void AudioEngine::addTrackChain (models::Track& track)
     {
         TrackChain chain;
 
-        // Channel strip is common to every track type.
+        // Channel strip is common to every track type and sits at the chain tail.
         auto stripNode = graph.addNode (std::make_unique<TrackProcessor> (track.name));
         chain.strip = stripNode->nodeID;
         connectStereo (chain.strip, masterNode->nodeID);
 
+        // Head of the audio portion of the chain: instrument output (MIDI) or
+        // clip-player output (audio).
+        NodeID lastAudioNode;
+
         if (track.getType() == models::TrackType::midi)
         {
             auto sourceNode = graph.addNode (std::make_unique<MidiSourceProcessor> (transport));
-            auto instNode   = graph.addNode (std::make_unique<SynthProcessor>());
+            chain.source = sourceNode->nodeID;
 
-            chain.source     = sourceNode->nodeID;
-            chain.instrument = instNode->nodeID;
-
+            chain.instrument = makeInstrumentNode (track);
             connectMidi (chain.source, chain.instrument);
-            connectStereo (chain.instrument, chain.strip);
+
+            lastAudioNode = chain.instrument;
         }
         else
         {
             auto sourceNode = graph.addNode (std::make_unique<AudioClipProcessor> (transport));
             chain.source = sourceNode->nodeID;
-            connectStereo (chain.source, chain.strip);
+            lastAudioNode = chain.source;
         }
+
+        // Insert FX chain: a series of hosted effect plugins between the source/
+        // instrument and the channel strip.
+        for (const auto& identifier : track.insertPluginIdentifiers)
+        {
+            juce::String error;
+            auto fx = pluginManager.createInstance (identifier, currentSampleRate, currentBlockSize, error);
+            if (fx == nullptr)
+            {
+                DBG ("OmniDAW: insert FX load failed (" << error << ")");
+                continue;
+            }
+
+            auto fxNode = graph.addNode (std::move (fx));
+            connectStereo (lastAudioNode, fxNode->nodeID);
+            lastAudioNode = fxNode->nodeID;
+            chain.inserts.push_back (fxNode->nodeID);
+        }
+
+        connectStereo (lastAudioNode, chain.strip);
 
         trackChains[track.getId().toDashedString().toStdString()] = chain;
     }
