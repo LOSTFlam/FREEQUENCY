@@ -55,7 +55,13 @@ namespace freequency::ui
         mixerView = std::make_unique<MixerView> (context);
         addChildComponent (*mixerView); // hidden until toggled
 
-        setSize (1280, 760);
+        statusBar = std::make_unique<StatusBar> (context);
+        addAndMakeVisible (*statusBar);
+
+        // Receive keyboard shortcuts.
+        setWantsKeyboardFocus (true);
+
+        setSize (1360, 800);
     }
 
     MainComponent::~MainComponent()
@@ -105,6 +111,32 @@ namespace freequency::ui
         if (mixerView != nullptr)   mixerView->setVisible (mixerVisible);
     }
 
+    bool MainComponent::keyPressed (const juce::KeyPress& key)
+    {
+        auto& transport = audioEngine.getTransport();
+
+        // Spacebar: play / stop (the universal DAW transport toggle).
+        if (key == juce::KeyPress::spaceKey)
+        {
+            transport.togglePlay();
+            return true;
+        }
+
+        if (key == juce::KeyPress::returnKey || key == juce::KeyPress::homeKey)
+        {
+            transport.setPositionSeconds (0.0);
+            return true;
+        }
+
+        const auto c = key.getTextCharacter();
+
+        if (c == 'l' || c == 'L') { transport.setLooping (! transport.isLooping()); return true; }
+        if (c == 'm' || c == 'M') { audioEngine.setMetronomeEnabled (! audioEngine.isMetronomeEnabled()); return true; }
+        if (c == 'b' || c == 'B') { toggleMixer(); return true; }
+
+        return false;
+    }
+
     void MainComponent::paint (juce::Graphics& g)
     {
         g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
@@ -116,6 +148,9 @@ namespace freequency::ui
 
         if (transportBar != nullptr)
             transportBar->setBounds (r.removeFromTop (56));
+
+        if (statusBar != nullptr)
+            statusBar->setBounds (r.removeFromBottom (24));
 
         if (arrangeView != nullptr)
             arrangeView->setBounds (r);

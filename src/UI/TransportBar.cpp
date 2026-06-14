@@ -10,6 +10,11 @@ namespace freequency::ui
     {
         auto& transport = context.engine.getTransport();
 
+        addAndMakeVisible (logoLabel);
+        logoLabel.setText ("FREEQUENCY", juce::dontSendNotification);
+        logoLabel.setFont (juce::FontOptions (16.0f, juce::Font::bold));
+        logoLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::accent));
+
         addAndMakeVisible (playButton);
         playButton.setClickingTogglesState (true);
         playButton.onClick = [this]
@@ -67,6 +72,38 @@ namespace freequency::ui
         loopButton.onClick = [this, &transport]
         {
             context.engine.getTransport().setLooping (loopButton.getToggleState());
+        };
+
+        addAndMakeVisible (metronomeButton);
+        metronomeButton.setClickingTogglesState (true);
+        metronomeButton.setToggleState (context.engine.isMetronomeEnabled(), juce::dontSendNotification);
+        metronomeButton.onClick = [this]
+        {
+            context.engine.setMetronomeEnabled (metronomeButton.getToggleState());
+        };
+
+        addAndMakeVisible (tapButton);
+        tapButton.onClick = [this] { tapTempo(); };
+
+        addAndMakeVisible (limiterButton);
+        limiterButton.setClickingTogglesState (true);
+        limiterButton.setToggleState (context.engine.isLimiterEnabled(), juce::dontSendNotification);
+        limiterButton.onClick = [this]
+        {
+            context.engine.setLimiterEnabled (limiterButton.getToggleState());
+        };
+
+        addAndMakeVisible (snapCaption);
+        snapCaption.setText ("Snap", juce::dontSendNotification);
+        snapCaption.setFont (juce::FontOptions (11.0f));
+        snapCaption.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+
+        addAndMakeVisible (snapBox);
+        snapBox.addItemList ({ "Off", "Bar", "1/2", "1/4", "1/8", "1/16" }, 1);
+        snapBox.setSelectedId (2, juce::dontSendNotification); // Bar
+        snapBox.onChange = [this]
+        {
+            context.snap = (UIContext::Snap) (snapBox.getSelectedId() - 1);
         };
 
         addAndMakeVisible (addAudioButton);
@@ -157,6 +194,33 @@ namespace freequency::ui
         stopTimer();
     }
 
+    void TransportBar::tapTempo()
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+
+        // Reset if the previous tap was long ago (a new tempo intent).
+        if (! tapTimesMs.empty() && now - tapTimesMs.back() > 2000.0)
+            tapTimesMs.clear();
+
+        tapTimesMs.push_back (now);
+        if (tapTimesMs.size() > 8)
+            tapTimesMs.erase (tapTimesMs.begin());
+
+        if (tapTimesMs.size() >= 2)
+        {
+            const double span = tapTimesMs.back() - tapTimesMs.front();
+            const double avgInterval = span / (double) (tapTimesMs.size() - 1);
+            if (avgInterval > 0.0)
+            {
+                const double bpm = juce::jlimit (20.0, 999.0, 60000.0 / avgInterval);
+                context.project.getTimeline().setTempoBpm (bpm);
+                context.engine.getTransport().setTempo (bpm);
+                context.engine.rebuildSequences();
+                tempoLabel.setText (juce::String (bpm, 1), juce::dontSendNotification);
+            }
+        }
+    }
+
     void TransportBar::updateTempoFromLabel()
     {
         const auto bpm = juce::jlimit (20.0, 999.0, tempoLabel.getText().getDoubleValue());
@@ -173,6 +237,9 @@ namespace freequency::ui
         // Keep the play button in sync if transport state changed elsewhere.
         playButton.setToggleState (t.isPlaying(), juce::dontSendNotification);
         recordButton.setToggleState (context.engine.isRecording(), juce::dontSendNotification);
+        metronomeButton.setToggleState (context.engine.isMetronomeEnabled(), juce::dontSendNotification);
+        limiterButton.setToggleState (context.engine.isLimiterEnabled(), juce::dontSendNotification);
+        loopButton.setToggleState (t.isLooping(), juce::dontSendNotification);
 
         const auto seconds = t.getPositionSeconds();
         const auto tempo = context.project.getTimeline().getTempoBpm();
@@ -217,31 +284,41 @@ namespace freequency::ui
     {
         auto r = getLocalBounds().reduced (8, 8);
 
+        // Reserve the meter strip on the far right (painted in paint()).
+        r.removeFromRight (170);
+
         auto button = [&r] (juce::Component& c, int w)
         {
             c.setBounds (r.removeFromLeft (w).reduced (3, 0));
         };
 
-        button (playButton, 64);
-        button (stopButton, 56);
-        button (recordButton, 52);
-        button (loopButton, 56);
+        logoLabel.setBounds (r.removeFromLeft (104));
+        r.removeFromLeft (4);
 
-        r.removeFromLeft (14);
-        positionLabel.setBounds (r.removeFromLeft (150));
+        button (playButton, 56);
+        button (stopButton, 52);
+        button (recordButton, 48);
+        button (loopButton, 58);
+        button (metronomeButton, 58);
 
         r.removeFromLeft (10);
-        tempoCaption.setBounds (r.removeFromLeft (32));
-        tempoLabel.setBounds (r.removeFromLeft (60));
+        positionLabel.setBounds (r.removeFromLeft (128));
 
-        r.removeFromLeft (14);
-        button (addAudioButton, 76);
-        button (addMidiButton, 72);
-        button (mixerButton, 64);
         r.removeFromLeft (8);
-        button (saveButton, 58);
-        button (openButton, 58);
+        tempoCaption.setBounds (r.removeFromLeft (30));
+        tempoLabel.setBounds (r.removeFromLeft (52));
+        button (tapButton, 50);
 
-        // Right area is reserved for the meter (painted in paint()).
+        r.removeFromLeft (8);
+        snapCaption.setBounds (r.removeFromLeft (34));
+        snapBox.setBounds (r.removeFromLeft (64).reduced (0, 6));
+
+        r.removeFromLeft (10);
+        button (addAudioButton, 70);
+        button (addMidiButton, 64);
+        button (mixerButton, 58);
+        button (limiterButton, 44);
+        button (saveButton, 52);
+        button (openButton, 52);
     }
 } // namespace freequency::ui

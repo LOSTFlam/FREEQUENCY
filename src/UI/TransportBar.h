@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 namespace freequency::ui
 {
@@ -37,13 +38,20 @@ namespace freequency::ui
     private:
         void timerCallback() override;
         void updateTempoFromLabel();
+        void tapTempo();
 
         UIContext& context;
 
+        juce::Label      logoLabel;
         juce::TextButton playButton   { "Play" };
         juce::TextButton stopButton   { "Stop" };
         juce::TextButton recordButton { "Rec" };
         juce::TextButton loopButton   { "Loop" };
+        juce::TextButton metronomeButton { "Click" };
+        juce::TextButton tapButton    { "Tap" };
+        juce::TextButton limiterButton { "Lim" };
+        juce::ComboBox   snapBox;
+        juce::Label      snapCaption;
         juce::TextButton addAudioButton { "+ Audio" };
         juce::TextButton addMidiButton  { "+ MIDI" };
         juce::TextButton mixerButton    { "Mixer" };
@@ -57,6 +65,7 @@ namespace freequency::ui
         juce::Label tempoCaption;
 
         float meterLevel { 0.0f };
+        std::vector<double> tapTimesMs; // tap-tempo history
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TransportBar)
     };

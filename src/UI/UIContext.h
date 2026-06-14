@@ -20,6 +20,34 @@ namespace freequency::ui
 
         double pixelsPerSecond { 90.0 };
 
+        // Grid snap (FL/Cubase-style). Clip placement snaps to this division.
+        enum class Snap { off, bar, half, quarter, eighth, sixteenth };
+        Snap snap { Snap::bar };
+
+        /** Snap a time (seconds) to the current grid division. */
+        [[nodiscard]] double snapTime (double seconds) const noexcept
+        {
+            if (snap == Snap::off)
+                return juce::jmax (0.0, seconds);
+
+            const auto& timeline = project.getTimeline();
+            const double secsPerBeat = 60.0 / juce::jmax (1.0, timeline.getTempoBpm());
+            const double secsPerBar  = secsPerBeat * juce::jmax (1, timeline.getTimeSigNumerator());
+
+            double grid = secsPerBar;
+            switch (snap)
+            {
+                case Snap::off:       return juce::jmax (0.0, seconds);
+                case Snap::bar:       grid = secsPerBar;        break;
+                case Snap::half:      grid = secsPerBar * 0.5;  break;
+                case Snap::quarter:   grid = secsPerBeat;       break;
+                case Snap::eighth:    grid = secsPerBeat * 0.5; break;
+                case Snap::sixteenth: grid = secsPerBeat * 0.25;break;
+            }
+
+            return juce::jmax (0.0, std::round (seconds / grid) * grid);
+        }
+
         // Layout constants shared across the arrange view.
         static constexpr int headerWidth = 220;
         static constexpr int rulerHeight = 26;

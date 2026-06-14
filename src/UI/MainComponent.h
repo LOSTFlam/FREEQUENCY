@@ -7,6 +7,7 @@
 #include "UI/TransportBar.h"
 #include "UI/ArrangeView.h"
 #include "UI/MixerView.h"
+#include "UI/StatusBar.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -30,6 +31,7 @@ namespace freequency::ui
 
         void paint (juce::Graphics&) override;
         void resized() override;
+        bool keyPressed (const juce::KeyPress&) override;
 
     private:
         void buildDemoProject();
@@ -44,6 +46,7 @@ namespace freequency::ui
         std::unique_ptr<TransportBar> transportBar;
         std::unique_ptr<ArrangeView> arrangeView;
         std::unique_ptr<MixerView> mixerView;
+        std::unique_ptr<StatusBar> statusBar;
 
         bool mixerVisible { false };
         juce::String engineStatus;

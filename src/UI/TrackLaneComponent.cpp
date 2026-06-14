@@ -293,18 +293,16 @@ namespace freequency::ui
         if (trackRef.volumeAutomationEnabled)
             return;
 
-        const auto clickedSeconds = juce::jmax (0.0, context.xToSeconds (e.x));
+        const auto clickedSeconds = context.snapTime (context.xToSeconds (e.x));
 
         if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&trackRef))
         {
-            // Snap to the bar and drop in a 2-bar starter pattern.
             const auto& timeline = context.project.getTimeline();
             const auto secsPerBar = (60.0 / juce::jmax (1.0, timeline.getTempoBpm()))
                                     * juce::jmax (1, timeline.getTimeSigNumerator());
-            const auto barStart = std::floor (clickedSeconds / secsPerBar) * secsPerBar;
 
             auto* clip = midiTrack->addClip();
-            clip->startTime = barStart;
+            clip->startTime = clickedSeconds;
             clip->length = secsPerBar * 2.0;
             clip->name = "Pattern";
 
