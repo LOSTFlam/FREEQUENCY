@@ -1,12 +1,14 @@
 #include "UI/MainComponent.h"
 #include "Models/Project.h"
+#include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 #include "Models/ProjectSerializer.h"
 #include "Engine/AudioEngine.h"
 #include "DSP/BuiltinEffects.h"
 
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 
+#include <cmath>
 #include <iostream>
 #include <variant>
 
@@ -241,6 +243,70 @@ namespace freequency
                                 && dynamic_cast<models::VCATrack*> (p2.getTimeline().getTrack (1)) != nullptr;
                 std::cout << "FREEQUENCY self-test: serializer (routing/reverse/vca) "
                           << (ok ? "[PASS]" : "[FAIL]") << std::endl;
+            }
+
+            // Comp swipe: two takes mixed at crossfade 0 vs 1 must produce different output.
+            {
+                auto writeSineWav = [] (float freqHz, float amplitude) -> juce::File
+                {
+                    const auto path = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                          .getChildFile ("freequency_comp_" + juce::String (freqHz) + ".wav");
+                    path.deleteFile();
+
+                    juce::WavAudioFormat format;
+                    std::unique_ptr<juce::FileOutputStream> out (path.createOutputStream());
+                    if (out == nullptr)
+                        return {};
+
+                    std::unique_ptr<juce::AudioFormatWriter> writer (
+                        format.createWriterFor (out.get(), 44100.0, 1, 16, {}, 0));
+                    if (writer == nullptr)
+                        return {};
+                    out.release();
+
+                    const int numSamples = 44100;
+                    juce::AudioBuffer<float> buf (1, numSamples);
+                    for (int i = 0; i < numSamples; ++i)
+                    {
+                        const float s = amplitude * std::sin (2.0f * juce::MathConstants<float>::pi * freqHz
+                                                              * (float) i / 44100.0f);
+                        buf.setSample (0, i, s);
+                    }
+                    writer->writeFromAudioSampleBuffer (buf, 0, numSamples);
+                    return path;
+                };
+
+                const auto wavA = writeSineWav (440.0f, 0.30f);
+                const auto wavB = writeSineWav (880.0f, 0.90f);
+
+                auto renderCompPeak = [&] (float crossfadePos) -> float
+                {
+                    models::Project compProject;
+                    auto* audioTr = compProject.getTimeline().addAudioTrack();
+                    auto* compClip = audioTr->addClip();
+                    compClip->takeFiles.add (wavA.getFullPathName());
+                    compClip->takeFiles.add (wavB.getFullPathName());
+                    compClip->sourceFile = wavA;
+                    compClip->startTime = 0.0;
+                    compClip->length = 0.5;
+                    compClip->ensureDefaultCompRegion();
+                    compClip->compSwipeRegions[0].crossfadePosition = crossfadePos;
+
+                    engine::AudioEngine compEngine;
+                    compEngine.setProject (&compProject);
+                    return compEngine.renderOfflinePeak (44100.0, 0.5);
+                };
+
+                const float peakLow = renderCompPeak (0.0f);
+                const float peakHigh = renderCompPeak (1.0f);
+                wavA.deleteFile();
+                wavB.deleteFile();
+
+                const bool compOk = peakLow > 0.01f && peakHigh > 0.01f
+                                    && std::abs (peakLow - peakHigh) > 0.005f;
+                std::cout << "FREEQUENCY self-test: comp swipe peaks low=" << peakLow
+                          << " high=" << peakHigh
+                          << (compOk ? "  [PASS]" : "  [FAIL]") << std::endl;
             }
         }
 

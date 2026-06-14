@@ -100,6 +100,7 @@ freequency_add_library(FreequencyDSP
 # ── FreequencyEngine — real-time audio graph, transport, sequencing ─────────────
 freequency_add_library(FreequencyEngine
     Engine/AudioEngine.cpp
+    Engine/CompSwipeMixer.cpp
     Engine/TrackProcessor.cpp
     Engine/MidiSourceProcessor.cpp
     Engine/AudioClipProcessor.cpp

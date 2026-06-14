@@ -6,6 +6,8 @@
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 
+#include <vector>
+
 namespace freequency::ui
 {
     TrackLaneComponent::TrackLaneComponent (UIContext& ctx, models::Track& track, int index)
@@ -16,27 +18,45 @@ namespace freequency::ui
 
     TrackLaneComponent::~TrackLaneComponent()
     {
-        for (auto* t : thumbnails)
-            t->removeChangeListener (this);
+        for (auto& set : audioThumbnails)
+            for (auto* t : set.takes)
+                t->removeChangeListener (this);
     }
 
     void TrackLaneComponent::refreshClips()
     {
-        for (auto* t : thumbnails)
-            t->removeChangeListener (this);
-        thumbnails.clear();
+        for (auto& set : audioThumbnails)
+            for (auto* t : set.takes)
+                t->removeChangeListener (this);
+        audioThumbnails.clear();
 
         if (auto* audioTrack = dynamic_cast<models::AudioTrack*> (&trackRef))
         {
             for (int i = 0; i < audioTrack->getNumClips(); ++i)
             {
-                auto* thumb = thumbnails.add (
-                    new juce::AudioThumbnail (512, context.engine.getFormatManager(), thumbnailCache));
-                thumb->addChangeListener (this);
-
+                ClipThumbnailSet set;
                 if (auto* clip = dynamic_cast<models::AudioClip*> (audioTrack->getClip (i)))
-                    if (clip->sourceFile.existsAsFile())
+                {
+                    for (int t = 0; t < clip->getNumTakes(); ++t)
+                    {
+                        auto* thumb = set.takes.add (
+                            new juce::AudioThumbnail (512, context.engine.getFormatManager(), thumbnailCache));
+                        thumb->addChangeListener (this);
+
+                        const juce::File takeFile (clip->takeFiles[t]);
+                        if (takeFile.existsAsFile())
+                            thumb->setSource (new juce::FileInputSource (takeFile));
+                    }
+
+                    if (set.takes.isEmpty() && clip->sourceFile.existsAsFile())
+                    {
+                        auto* thumb = set.takes.add (
+                            new juce::AudioThumbnail (512, context.engine.getFormatManager(), thumbnailCache));
+                        thumb->addChangeListener (this);
                         thumb->setSource (new juce::FileInputSource (clip->sourceFile));
+                    }
+                }
+                audioThumbnails.push_back (std::move (set));
             }
         }
 
@@ -107,12 +127,48 @@ namespace freequency::ui
         return nullptr;
     }
 
+    double TrackLaneComponent::clipTimelineLength (models::Clip& clip) const
+    {
+        return clip.length > 0.0 ? clip.length : 2.0;
+    }
+
+    int TrackLaneComponent::hitTestCompSwipe (models::AudioClip& clip, juce::Point<int> pos,
+                                              juce::Rectangle<int> clipBounds) const
+    {
+        if (clip.getNumTakes() < 2 || clip.compSwipeRegions.empty())
+            return -1;
+
+        const double clipLen = clipTimelineLength (clip);
+        if (clipLen <= 0.0 || clipBounds.getWidth() <= 0)
+            return -1;
+
+        const double relSec = (double) (pos.x - clipBounds.getX()) / (double) clipBounds.getWidth() * clipLen;
+
+        for (int i = 0; i < (int) clip.compSwipeRegions.size(); ++i)
+        {
+            const auto& region = clip.compSwipeRegions[(size_t) i];
+            const double boundary = region.startTime + region.length * (double) region.crossfadePosition;
+            const int bx = clipBounds.getX()
+                           + (int) std::llround (boundary / clipLen * (double) clipBounds.getWidth());
+
+            if (std::abs (pos.x - bx) <= compSwipeHitW
+                && relSec >= region.startTime && relSec <= region.startTime + region.length)
+                return i;
+        }
+
+        return -1;
+    }
+
     TrackLaneComponent::ClipDragMode TrackLaneComponent::hitTestClip (models::Clip& clip,
                                                                       juce::Point<int> pos) const
     {
         const auto bounds = clipBoundsFor (clip);
         if (! bounds.contains (pos))
             return ClipDragMode::none;
+
+        if (auto* ac = dynamic_cast<models::AudioClip*> (&clip))
+            if (hitTestCompSwipe (*ac, pos, bounds) >= 0)
+                return ClipDragMode::compSwipe;
 
         if (pos.x - bounds.getX() <= trimHandleW)
             return ClipDragMode::trimLeft;
@@ -129,11 +185,16 @@ namespace freequency::ui
             {
                 if (ac == &clip)
                 {
-                    if (i < thumbnails.size() && thumbnails[i] != nullptr)
+                    if ((size_t) i < audioThumbnails.size())
                     {
-                        const auto len = thumbnails[i]->getTotalLength();
-                        if (len > 0.0)
-                            return len;
+                        const auto& set = audioThumbnails[(size_t) i];
+                        const int takeIdx = juce::jlimit (0, set.takes.size() - 1, clip.activeTake);
+                        if (takeIdx >= 0 && takeIdx < set.takes.size())
+                        {
+                            const auto len = set.takes[takeIdx]->getTotalLength();
+                            if (len > 0.0)
+                                return len;
+                        }
                     }
                     break;
                 }
@@ -180,7 +241,8 @@ namespace freequency::ui
             switch (mode)
             {
                 case ClipDragMode::trimLeft:
-                case ClipDragMode::trimRight: setMouseCursor (juce::MouseCursor::LeftRightResizeCursor); break;
+                case ClipDragMode::trimRight:
+                case ClipDragMode::compSwipe: setMouseCursor (juce::MouseCursor::LeftRightResizeCursor); break;
                 case ClipDragMode::move:      setMouseCursor (juce::MouseCursor::DraggingHandCursor); break;
                 default:                      setMouseCursor (juce::MouseCursor::NormalCursor); break;
             }
@@ -331,8 +393,20 @@ namespace freequency::ui
                 dragOrigSourceOffset = ac->sourceOffset;
 
             dragMode = hit != nullptr ? hitTestClip (*hit, e.getPosition()) : ClipDragMode::none;
-            if (e.mods.isAltDown() && hit != nullptr)
+            if (e.mods.isAltDown() && hit != nullptr && dragMode == ClipDragMode::move)
                 dragMode = ClipDragMode::slip;
+
+            dragCompRegionIdx = -1;
+            dragOrigCrossfade = 0.5f;
+            if (dragMode == ClipDragMode::compSwipe)
+            {
+                if (auto* ac = dynamic_cast<models::AudioClip*> (hit))
+                {
+                    dragCompRegionIdx = hitTestCompSwipe (*ac, e.getPosition(), clipBoundsFor (*hit));
+                    if (dragCompRegionIdx >= 0)
+                        dragOrigCrossfade = ac->compSwipeRegions[(size_t) dragCompRegionIdx].crossfadePosition;
+                }
+            }
 
             dragStartX = e.x;
             didDrag = false;
@@ -411,6 +485,25 @@ namespace freequency::ui
                     {
                         const double maxOffset = juce::jmax (0.0, audioSourceDuration (*ac) - dragOrigLength);
                         ac->sourceOffset = juce::jlimit (0.0, maxOffset, dragOrigSourceOffset + deltaSec);
+                    }
+                    break;
+
+                case ClipDragMode::compSwipe:
+                    if (auto* ac = dynamic_cast<models::AudioClip*> (dragClip))
+                    {
+                        if (dragCompRegionIdx >= 0
+                            && dragCompRegionIdx < (int) ac->compSwipeRegions.size())
+                        {
+                            auto& region = ac->compSwipeRegions[(size_t) dragCompRegionIdx];
+                            const auto bounds = clipBoundsFor (*dragClip);
+                            const double clipLen = clipTimelineLength (*dragClip);
+                            const double relSec = (double) (e.x - bounds.getX())
+                                                  / (double) juce::jmax (1, bounds.getWidth()) * clipLen;
+                            const double relInRegion = relSec - region.startTime;
+                            region.crossfadePosition = juce::jlimit (
+                                0.0f, 1.0f,
+                                (float) (relInRegion / juce::jmax (0.001, region.length)));
+                        }
                     }
                     break;
 
@@ -556,27 +649,99 @@ namespace freequency::ui
         }
     }
 
+    void TrackLaneComponent::drawCompSwipeOverlay (juce::Graphics& g, models::AudioClip& clip,
+                                                   juce::Rectangle<int> clipBounds)
+    {
+        if (clip.getNumTakes() < 2 || clip.compSwipeRegions.empty())
+            return;
+
+        const double clipLen = clipTimelineLength (clip);
+        if (clipLen <= 0.0 || clipBounds.getWidth() <= 0)
+            return;
+
+        const bool selected = (&clip == context.selectedClip);
+
+        for (const auto& region : clip.compSwipeRegions)
+        {
+            const double boundary = region.startTime + region.length * (double) region.crossfadePosition;
+            const int bx = clipBounds.getX()
+                           + (int) std::llround (boundary / clipLen * (double) clipBounds.getWidth());
+            const int rx = clipBounds.getX()
+                           + (int) std::llround ((region.startTime + region.length) / clipLen
+                                                 * (double) clipBounds.getWidth());
+
+            g.setColour (theme().accent.withAlpha (0.10f));
+            g.fillRect (bx, clipBounds.getY(), rx - bx, clipBounds.getHeight());
+
+            g.setColour (theme().accent.withAlpha (selected ? 0.95f : 0.65f));
+            g.drawLine ((float) bx, (float) clipBounds.getY(),
+                        (float) bx, (float) clipBounds.getBottom(), selected ? 2.5f : 1.8f);
+
+            const float cy = (float) clipBounds.getCentreY();
+            juce::Path handle;
+            handle.addStar ({ (float) bx, cy }, 4, 3.0f, 6.0f, 0.0f);
+            g.fillPath (handle);
+        }
+
+        g.setColour (theme().accentWarm);
+        g.setFont (juce::FontOptions (9.0f));
+        g.drawText ("Swipe comp  T" + juce::String (clip.activeTake + 1) + "/"
+                        + juce::String (clip.getNumTakes()),
+                    clipBounds.removeFromBottom (12).reduced (3, 0),
+                    juce::Justification::bottomRight, false);
+    }
+
     void TrackLaneComponent::drawAudioClip (juce::Graphics& g, models::AudioClip& clip,
                                             int clipIndex, juce::Rectangle<int> clipBounds)
     {
-        if (clipIndex < 0 || clipIndex >= thumbnails.size())
+        if (clipIndex < 0 || (size_t) clipIndex >= audioThumbnails.size())
             return;
 
-        auto* thumb = thumbnails[clipIndex];
-        if (thumb == nullptr || thumb->getTotalLength() <= 0.0)
+        const auto& set = audioThumbnails[(size_t) clipIndex];
+        const bool comping = clip.getNumTakes() >= 2 && ! clip.compSwipeRegions.empty();
+        const double length = clip.length > 0.0 ? clip.length : 2.0;
+
+        if (set.takes.isEmpty())
         {
             g.setColour (theme().textDim);
             g.setFont (juce::FontOptions (10.0f));
             g.drawText (clip.sourceFile.getFileName(), clipBounds, juce::Justification::centred, true);
+            drawCompSwipeOverlay (g, clip, clipBounds);
             return;
         }
 
-        g.setColour (trackRef.colour.brighter (0.4f));
-        const auto length = clip.length > 0.0 ? clip.length : thumb->getTotalLength();
-        thumb->drawChannels (g, clipBounds, clip.sourceOffset, clip.sourceOffset + length, 0.9f);
+        const auto drawTake = [&] (int takeIdx, float alpha)
+        {
+            if (takeIdx < 0 || takeIdx >= set.takes.size())
+                return;
+            auto* thumb = set.takes[takeIdx];
+            if (thumb == nullptr || thumb->getTotalLength() <= 0.0)
+                return;
 
-        // Comping indicator (active take / total).
-        if (clip.getNumTakes() > 1)
+            g.setColour (trackRef.colour.brighter (0.4f).withAlpha (alpha));
+            const auto srcLen = thumb->getTotalLength();
+            const auto visibleLen = length > 0.0 ? length : srcLen;
+            thumb->drawChannels (g, clipBounds, clip.sourceOffset, clip.sourceOffset + visibleLen, alpha);
+        };
+
+        if (comping)
+        {
+            for (int t = 0; t < clip.getNumTakes(); ++t)
+            {
+                if (t == clip.activeTake)
+                    continue;
+                drawTake (t, 0.28f);
+            }
+            drawTake (clip.activeTake, 0.85f);
+        }
+        else
+        {
+            drawTake (juce::jlimit (0, set.takes.size() - 1, clip.activeTake), 0.9f);
+        }
+
+        drawCompSwipeOverlay (g, clip, clipBounds);
+
+        if (clip.getNumTakes() > 1 && ! comping)
         {
             g.setColour (theme().accentWarm);
             g.setFont (juce::FontOptions (9.0f));

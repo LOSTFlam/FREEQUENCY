@@ -24,4 +24,18 @@ namespace freequency::models
     {
         name = "Pattern Clip";
     }
+
+    void AudioClip::ensureDefaultCompRegion()
+    {
+        if (getNumTakes() < 2 || ! compSwipeRegions.empty())
+            return;
+
+        CompSwipeRegion region;
+        region.startTime = 0.0;
+        region.length = length > 0.0 ? length : 4.0;
+        region.takeA = 0;
+        region.takeB = juce::jmin (1, getNumTakes() - 1);
+        region.crossfadePosition = 0.5f;
+        compSwipeRegions.push_back (region);
+    }
 } // namespace freequency::models

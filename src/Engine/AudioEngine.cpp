@@ -3,6 +3,7 @@
 #include "Models/AudioTrack.h"
 #include "Models/MidiTrack.h"
 #include "Models/PatternExpander.h"
+#include "Engine/CompSwipeMixer.h"
 #include "DSP/BuiltinEffects.h"
 #include "DSP/TimeStretch.h"
 
@@ -535,25 +536,66 @@ namespace freequency::engine
                     if (clip == nullptr)
                         continue;
 
-                    auto buffer = loadFileResampled (formatManager, clip->sourceFile, sr);
+                    const bool compMix = clip->getNumTakes() >= 2 && ! clip->compSwipeRegions.empty();
+
+                    std::unique_ptr<juce::AudioBuffer<float>> buffer;
+
+                    if (compMix)
+                    {
+                        std::vector<std::unique_ptr<juce::AudioBuffer<float>>> takeOwned;
+                        std::vector<const juce::AudioBuffer<float>*> takePtrs;
+                        takeOwned.reserve ((size_t) clip->getNumTakes());
+                        takePtrs.reserve ((size_t) clip->getNumTakes());
+
+                        for (int t = 0; t < clip->getNumTakes(); ++t)
+                        {
+                            auto takeBuf = loadFileResampled (formatManager,
+                                                              juce::File (clip->takeFiles[t]),
+                                                              sr);
+                            if (takeBuf == nullptr)
+                                continue;
+
+                            takeBuf = dsp::TimeStretch::applyWarp (std::move (takeBuf),
+                                                                   clip->stretchRatio,
+                                                                   clip->pitchSemitones);
+
+                            if (clip->reversed)
+                                for (int ch = 0; ch < takeBuf->getNumChannels(); ++ch)
+                                    takeBuf->reverse (ch, 0, takeBuf->getNumSamples());
+
+                            takePtrs.push_back (takeBuf.get());
+                            takeOwned.push_back (std::move (takeBuf));
+                        }
+
+                        if (! takePtrs.empty())
+                        {
+                            const auto srcOffset = (juce::int64) (clip->sourceOffset * sr);
+                            buffer = CompSwipeMixer::mixTakes (*clip, takePtrs, sr, srcOffset);
+                        }
+                    }
+                    else
+                    {
+                        buffer = loadFileResampled (formatManager, clip->sourceFile, sr);
+                        if (buffer == nullptr)
+                            continue;
+
+                        buffer = dsp::TimeStretch::applyWarp (std::move (buffer),
+                                                              clip->stretchRatio,
+                                                              clip->pitchSemitones);
+
+                        if (clip->reversed)
+                            for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
+                                buffer->reverse (ch, 0, buffer->getNumSamples());
+                    }
+
                     if (buffer == nullptr)
                         continue;
-
-                    // Warp (time-stretch) + pitch shift, baked once here so the
-                    // audio thread just streams the result.
-                    buffer = dsp::TimeStretch::applyWarp (std::move (buffer), clip->stretchRatio, clip->pitchSemitones);
-
-                    // Reverse playback: flip the pre-loaded sample data once here,
-                    // so the audio thread still just streams it forwards.
-                    if (clip->reversed)
-                        for (int ch = 0; ch < buffer->getNumChannels(); ++ch)
-                            buffer->reverse (ch, 0, buffer->getNumSamples());
 
                     AudioClipSnapshot::Region region;
                     region.bufferIndex          = snapshot->buffers.size();
                     region.timelineStartSample  = (juce::int64) (clip->startTime * sr);
                     region.sourceOffsetSamples  = (juce::int64) (clip->sourceOffset * sr);
-                    region.gain                 = clip->gain;
+                    region.gain                 = compMix ? 1.0f : clip->gain;
 
                     const auto available = (juce::int64) buffer->getNumSamples() - region.sourceOffsetSamples;
                     region.lengthSamples = clip->length > 0.0

@@ -95,7 +95,7 @@ Figma source: [FREEQUENCY — Spectral UI](https://www.figma.com/design/ACH9Fh5j
 | A | OLA stretch, resample pitch, take switch, trim | ✅ |
 | B | Model foundations (`HarmonicEdit.h`), docs, Spectral theme | 🔄 this PR |
 | C | Ghost notes in piano roll + PatternClip engine playback | ✅ |
-| D | Swipe comp crossfade (lane UI + snapshot mix) | ⏳ |
+| D | Swipe comp crossfade (lane UI + snapshot mix) | ✅ |
 | E | VariAudio segments + offline resynth bake | ⏳ |
 | F | Portamento slide curves (MIDI export + synth) | ⏳ |
 | G | Real-time elastic preview node | ⏳ |

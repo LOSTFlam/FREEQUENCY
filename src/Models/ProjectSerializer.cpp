@@ -23,6 +23,7 @@ namespace freequency::models
         OMNI_ID (time) OMNI_ID (value) OMNI_ID (data) OMNI_ID (bus) OMNI_ID (level)
         OMNI_ID (refs) OMNI_ID (scsrc) OMNI_ID (stretch) OMNI_ID (pitch)
         OMNI_ID (takes) OMNI_ID (activeTake)
+        OMNI_ID (COMPSWIPE) OMNI_ID (takeA) OMNI_ID (takeB) OMNI_ID (crossfade)
         OMNI_ID (patternId) OMNI_ID (stepsPerBar) OMNI_ID (lengthBeats)
         OMNI_ID (channel) OMNI_ID (rootNote) OMNI_ID (on)
         OMNI_ID (PATTERN) OMNI_ID (CHANNEL) OMNI_ID (STEP)
@@ -158,6 +159,17 @@ namespace freequency::models
                     clipTree.setProperty (pitch, audioClip->pitchSemitones, nullptr);
                     clipTree.setProperty (takes, audioClip->takeFiles.joinIntoString ("\n"), nullptr);
                     clipTree.setProperty (activeTake, audioClip->activeTake, nullptr);
+
+                    for (const auto& region : audioClip->compSwipeRegions)
+                    {
+                        juce::ValueTree swipeTree (COMPSWIPE);
+                        swipeTree.setProperty (start, region.startTime, nullptr);
+                        swipeTree.setProperty (length, region.length, nullptr);
+                        swipeTree.setProperty (takeA, region.takeA, nullptr);
+                        swipeTree.setProperty (takeB, region.takeB, nullptr);
+                        swipeTree.setProperty (crossfade, region.crossfadePosition, nullptr);
+                        clipTree.appendChild (swipeTree, nullptr);
+                    }
                 }
                 else if (auto* midiClip = dynamic_cast<MidiClip*> (clip))
                 {
@@ -429,6 +441,24 @@ namespace freequency::models
                             clip->takeFiles.addLines (child.getProperty (takes, "").toString());
                             clip->takeFiles.removeEmptyStrings();
                             clip->activeTake = (int) child.getProperty (activeTake, 0);
+
+                            for (int s = 0; s < child.getNumChildren(); ++s)
+                            {
+                                auto swipeNode = child.getChild (s);
+                                if (! swipeNode.hasType (COMPSWIPE))
+                                    continue;
+
+                                CompSwipeRegion region;
+                                region.startTime = swipeNode.getProperty (start, 0.0);
+                                region.length = swipeNode.getProperty (length, 0.0);
+                                region.takeA = (int) swipeNode.getProperty (takeA, 0);
+                                region.takeB = (int) swipeNode.getProperty (takeB, 1);
+                                region.crossfadePosition = (float) (double) swipeNode.getProperty (crossfade, 0.5);
+                                clip->compSwipeRegions.push_back (region);
+                            }
+
+                            if (clip->getNumTakes() >= 2 && clip->compSwipeRegions.empty())
+                                clip->ensureDefaultCompRegion();
                         }
                     }
                     else if (kindStr == "pattern")

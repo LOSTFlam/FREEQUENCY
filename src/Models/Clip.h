@@ -122,6 +122,9 @@ namespace freequency::models
         std::vector<WarpMarker> warpMarkers;
 
         [[nodiscard]] int getNumTakes() const noexcept { return takeFiles.size(); }
+
+        /** Create a full-clip swipe region when a second take is added. */
+        void ensureDefaultCompRegion();
     };
 
     /**

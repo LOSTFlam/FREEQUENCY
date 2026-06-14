@@ -680,6 +680,7 @@ namespace freequency::ui
                 clip->takeFiles.add (file.getFullPathName());
                 clip->activeTake = clip->takeFiles.size() - 1;
                 clip->sourceFile = file;
+                clip->ensureDefaultCompRegion();
                 afterClipChange();
             });
     }
