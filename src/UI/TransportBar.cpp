@@ -26,6 +26,40 @@ namespace omnidaw::ui
             playButton.setToggleState (false, juce::dontSendNotification);
         };
 
+        addAndMakeVisible (recordButton);
+        recordButton.setClickingTogglesState (true);
+        recordButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::danger));
+        recordButton.onClick = [this]
+        {
+            auto& t = context.engine.getTransport();
+
+            if (context.engine.isRecording())
+            {
+                context.engine.stopRecording();
+                t.stop();
+                playButton.setToggleState (false, juce::dontSendNotification);
+                recordButton.setToggleState (false, juce::dontSendNotification);
+            }
+            else
+            {
+                const auto dir = juce::File::getSpecialLocation (juce::File::userMusicDirectory)
+                                     .getChildFile ("OmniDAW Recordings");
+                const auto file = dir.getChildFile ("rec_" + juce::Time::getCurrentTime()
+                                     .formatted ("%Y%m%d_%H%M%S") + ".wav");
+
+                if (context.engine.startRecording (file))
+                {
+                    t.play();
+                    playButton.setToggleState (true, juce::dontSendNotification);
+                    recordButton.setToggleState (true, juce::dontSendNotification);
+                }
+                else
+                {
+                    recordButton.setToggleState (false, juce::dontSendNotification);
+                }
+            }
+        };
+
         addAndMakeVisible (loopButton);
         loopButton.setClickingTogglesState (true);
         loopButton.onClick = [this, &transport]
@@ -94,6 +128,7 @@ namespace omnidaw::ui
 
         // Keep the play button in sync if transport state changed elsewhere.
         playButton.setToggleState (t.isPlaying(), juce::dontSendNotification);
+        recordButton.setToggleState (context.engine.isRecording(), juce::dontSendNotification);
 
         const auto seconds = t.getPositionSeconds();
         const auto tempo = context.project.getTimeline().getTempoBpm();
@@ -143,9 +178,10 @@ namespace omnidaw::ui
             c.setBounds (r.removeFromLeft (w).reduced (3, 0));
         };
 
-        button (playButton, 70);
-        button (stopButton, 60);
-        button (loopButton, 60);
+        button (playButton, 64);
+        button (stopButton, 56);
+        button (recordButton, 52);
+        button (loopButton, 56);
 
         r.removeFromLeft (14);
         positionLabel.setBounds (r.removeFromLeft (150));

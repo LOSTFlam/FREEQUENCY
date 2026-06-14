@@ -25,6 +25,10 @@ namespace omnidaw::ui
 
         [[nodiscard]] const models::Track& getTrack() const noexcept { return trackRef; }
 
+        /** Notifies the host (lane) that volume automation was toggled, so it can
+            show/hide the automation overlay. */
+        std::function<void()> onAutomationToggled;
+
     private:
         UIContext& context;
         models::Track& trackRef;
@@ -33,6 +37,7 @@ namespace omnidaw::ui
         juce::Label typeLabel;
         juce::TextButton muteButton { "M" };
         juce::TextButton soloButton { "S" };
+        juce::TextButton autoButton { "A" };
         juce::Slider volumeSlider;
         juce::Slider panSlider;
 

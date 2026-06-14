@@ -39,9 +39,10 @@ namespace omnidaw::ui
 
         UIContext& context;
 
-        juce::TextButton playButton  { "Play" };
-        juce::TextButton stopButton  { "Stop" };
-        juce::TextButton loopButton  { "Loop" };
+        juce::TextButton playButton   { "Play" };
+        juce::TextButton stopButton   { "Stop" };
+        juce::TextButton recordButton { "Rec" };
+        juce::TextButton loopButton   { "Loop" };
         juce::TextButton addAudioButton { "+ Audio" };
         juce::TextButton addMidiButton  { "+ MIDI" };
         juce::TextButton mixerButton    { "Mixer" };

@@ -53,6 +53,8 @@ namespace omnidaw::ui
             auto* lane = lanes.add (new TrackLaneComponent (context, *track, i));
             lane->onClipsChanged = [this] { updateContentSize(); };
             laneContent.addAndMakeVisible (lane);
+
+            header->onAutomationToggled = [lane] { lane->repaint(); };
         }
 
         updateContentSize();

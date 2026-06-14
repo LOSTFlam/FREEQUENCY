@@ -36,6 +36,7 @@ namespace omnidaw::ui
         buildDemoProject();
 
         audioEngine.setProject (&project);
+        audioEngine.onRecordingFinished = [this] { if (arrangeView) arrangeView->rebuildTracks(); };
         const auto error = audioEngine.initialise();
         engineStatus = error.isEmpty() ? "Engine running" : ("Engine idle: " + error);
 

@@ -96,6 +96,11 @@ namespace omnidaw::engine
 
     void AudioEngine::shutdown()
     {
+        stopRecording();
+
+        if (recordThread.isThreadRunning())
+            recordThread.stopThread (2000);
+
         if (! running && ! deviceManager.getCurrentAudioDevice())
             return;
 
@@ -289,9 +294,51 @@ namespace omnidaw::engine
 
         syncParametersFromModel();
         rebuildSequences();
+        rebuildAutomation();
 
         if (wasRunning)
             deviceManager.addAudioCallback (this);
+    }
+
+    void AudioEngine::rebuildAutomation()
+    {
+        if (currentProject == nullptr)
+            return;
+
+        const double sr = transport.getSampleRate() > 0 ? transport.getSampleRate() : 44100.0;
+        auto& timeline = currentProject->getTimeline();
+
+        for (int i = 0; i < timeline.getNumTracks(); ++i)
+        {
+            auto* track = timeline.getTrack (i);
+            if (track == nullptr)
+                continue;
+
+            const auto it = trackChains.find (track->getId().toDashedString().toStdString());
+            if (it == trackChains.end())
+                continue;
+
+            auto* strip = getStripProcessor (it->second.strip);
+            if (strip == nullptr)
+                continue;
+
+            strip->setTransport (&transport);
+            strip->setAutomationEnabled (track->volumeAutomationEnabled);
+
+            if (track->volumeAutomationEnabled && ! track->volumeAutomation.isEmpty())
+            {
+                auto snap = new AutomationSnapshot();
+                snap->nodes.reserve ((size_t) track->volumeAutomation.getNumPoints());
+
+                for (int p = 0; p < track->volumeAutomation.getNumPoints(); ++p)
+                {
+                    const auto& pt = track->volumeAutomation.getPoint (p);
+                    snap->nodes.push_back ({ (juce::int64) (pt.time * sr), pt.value });
+                }
+
+                strip->setAutomationSnapshot (snap);
+            }
+        }
     }
 
     void AudioEngine::rebuildSequences()
@@ -491,7 +538,8 @@ namespace omnidaw::engine
         return 0;
     }
 
-    float AudioEngine::renderOfflinePeak (double sampleRate, double seconds, int blockSize)
+    float AudioEngine::renderOfflinePeak (double sampleRate, double seconds, int blockSize,
+                                          double measureFromSeconds)
     {
         currentSampleRate = sampleRate;
         currentBlockSize = blockSize;
@@ -500,6 +548,7 @@ namespace omnidaw::engine
         graph.prepareToPlay (sampleRate, blockSize);
 
         rebuildSequences();
+        rebuildAutomation();
 
         transport.setPositionSamples (0);
         transport.play();
@@ -508,6 +557,7 @@ namespace omnidaw::engine
         juce::MidiBuffer midi;
 
         const auto totalSamples = (juce::int64) std::llround (seconds * sampleRate);
+        const auto measureFrom  = (juce::int64) std::llround (measureFromSeconds * sampleRate);
         juce::int64 done = 0;
         float peak = 0.0f;
 
@@ -521,8 +571,11 @@ namespace omnidaw::engine
             graph.processBlock (buffer, midi);
             transport.advance (n);
 
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, n));
+            // Skip the warm-up region so gain ramps don't pollute a steady-state
+            // level measurement.
+            if (done >= measureFrom)
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, n));
 
             done += n;
         }
@@ -534,6 +587,95 @@ namespace omnidaw::engine
         return peak;
     }
 
+    // ── Disk recording ──────────────────────────────────────────────────────────
+
+    bool AudioEngine::startRecording (const juce::File& file)
+    {
+        stopRecording();
+
+        if (currentSampleRate <= 0.0)
+            return false;
+
+        file.getParentDirectory().createDirectory();
+        file.deleteFile();
+
+        std::unique_ptr<juce::OutputStream> fileStream = file.createOutputStream();
+
+        if (fileStream != nullptr)
+        {
+            juce::WavAudioFormat wav;
+            const int channels = juce::jmax (1, currentInputChannels);
+
+            const auto options = juce::AudioFormatWriterOptions()
+                                     .withSampleRate (currentSampleRate)
+                                     .withNumChannels (channels)
+                                     .withBitsPerSample (24);
+
+            // On success this moves ownership of the stream into the writer.
+            if (auto writer = wav.createWriterFor (fileStream, options))
+            {
+                threadedWriter.reset (new juce::AudioFormatWriter::ThreadedWriter (
+                    writer.release(), recordThread, 32768));
+
+                recordFile = file;
+                recordStartSeconds = transport.getPositionSeconds();
+
+                const juce::ScopedLock sl (writerLock);
+                activeWriter.store (threadedWriter.get(), std::memory_order_relaxed);
+                recording.store (true, std::memory_order_relaxed);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void AudioEngine::stopRecording()
+    {
+        {
+            const juce::ScopedLock sl (writerLock);
+            activeWriter.store (nullptr, std::memory_order_relaxed);
+        }
+
+        const bool wasRecording = recording.exchange (false, std::memory_order_relaxed);
+        threadedWriter.reset(); // flushes remaining buffered audio to disk
+
+        if (! wasRecording || currentProject == nullptr || ! recordFile.existsAsFile())
+            return;
+
+        // Punch-in: drop the captured file onto a record-armed audio track (or the
+        // first audio track) as a clip at the position recording started.
+        auto& timeline = currentProject->getTimeline();
+        models::AudioTrack* target = nullptr;
+
+        for (int i = 0; i < timeline.getNumTracks() && target == nullptr; ++i)
+            if (auto* at = dynamic_cast<models::AudioTrack*> (timeline.getTrack (i)))
+                if (at->recordEnabled)
+                    target = at;
+
+        if (target == nullptr)
+            for (int i = 0; i < timeline.getNumTracks() && target == nullptr; ++i)
+                target = dynamic_cast<models::AudioTrack*> (timeline.getTrack (i));
+
+        if (target != nullptr)
+        {
+            auto* clip = target->addClip();
+            clip->sourceFile = recordFile;
+            clip->startTime = recordStartSeconds;
+            clip->name = recordFile.getFileNameWithoutExtension();
+
+            if (auto reader = std::unique_ptr<juce::AudioFormatReader> (
+                    formatManager.createReaderFor (recordFile)))
+                if (reader->sampleRate > 0)
+                    clip->length = (double) reader->lengthInSamples / reader->sampleRate;
+
+            rebuildSequences();
+        }
+
+        if (onRecordingFinished)
+            onRecordingFinished();
+    }
+
     // ── Audio device callback ───────────────────────────────────────────────────
 
     void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
@@ -543,6 +685,9 @@ namespace omnidaw::engine
 
         currentSampleRate = sr;
         currentBlockSize = blockSize;
+        currentInputChannels = device->getActiveInputChannels().countNumberOfSetBits();
+        if (! recordThread.isThreadRunning())
+            recordThread.startThread();
         transport.prepare (sr);
 
         // The graph is output-only (2 ch). Prepare it and a scratch buffer big
@@ -553,9 +698,10 @@ namespace omnidaw::engine
         renderBuffer.setSize (2, juce::jmax (16, blockSize));
         scratchMidi.ensureSize (2048);
 
-        // Sample-rate-dependent data (clip resampling, MIDI sample times) must be
-        // rebuilt now that we know the device rate.
+        // Sample-rate-dependent data (clip resampling, MIDI sample times,
+        // automation breakpoints) must be rebuilt now that we know the device rate.
         rebuildSequences();
+        rebuildAutomation();
     }
 
     void AudioEngine::audioDeviceStopped()
@@ -563,14 +709,23 @@ namespace omnidaw::engine
         graph.releaseResources();
     }
 
-    void AudioEngine::audioDeviceIOCallbackWithContext (const float* const*,
-                                                        int,
+    void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
+                                                        int numInputChannels,
                                                         float* const* outputChannelData,
                                                         int numOutputChannels,
                                                         int numSamples,
                                                         const juce::AudioIODeviceCallbackContext&)
     {
         juce::ScopedNoDenormals noDenormals;
+
+        // Stream the live input to disk if recording. write() is non-blocking: the
+        // ThreadedWriter buffers into a lock-free FIFO drained by recordThread.
+        if (numInputChannels > 0 && transport.isPlaying())
+        {
+            const juce::ScopedLock sl (writerLock);
+            if (auto* writer = activeWriter.load (std::memory_order_relaxed))
+                writer->write (inputChannelData, numSamples);
+        }
 
         // Render the whole graph into our stereo scratch buffer.
         renderBuffer.setSize (2, numSamples, false, false, true);
@@ -613,6 +768,8 @@ namespace omnidaw::engine
                 src->collectGarbage();
             if (auto* src = getAudioSource (chain.source))
                 src->collectGarbage();
+            if (auto* strip = getStripProcessor (chain.strip))
+                strip->collectGarbage();
         }
 
         const auto total = getMasterProcessedSampleCount();

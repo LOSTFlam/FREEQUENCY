@@ -75,6 +75,18 @@ namespace omnidaw
             std::cout << "OmniDAW self-test: rendered peak = " << peak
                       << (peak > 0.0001f ? "  [PASS]" : "  [FAIL: silence]")
                       << std::endl;
+
+            // Automation check: a volume curve pinned to 0 must silence the track,
+            // proving automation overrides the fader on the audio thread.
+            midiTrack->volumeAutomation.addPoint (0.0, 0.0f);
+            midiTrack->volumeAutomation.addPoint (2.0, 0.0f);
+            midiTrack->volumeAutomationEnabled = true;
+            audioEngine.rebuildAutomation();
+
+            const float autoPeak = audioEngine.renderOfflinePeak (44100.0, 1.0, 512, 0.1);
+            std::cout << "OmniDAW self-test: automation(0) steady peak = " << autoPeak
+                      << (autoPeak < 0.01f ? "  [PASS]" : "  [FAIL: not silenced]")
+                      << std::endl;
         }
 
         /** A standard resizable document window hosting the MainComponent. */

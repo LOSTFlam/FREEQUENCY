@@ -1,5 +1,9 @@
 #pragma once
 
+#include "Engine/Transport.h"
+#include "Engine/AutomationSnapshot.h"
+#include "Engine/SnapshotHolder.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
@@ -43,6 +47,15 @@ namespace omnidaw::engine
         /** Pan position in [-1, +1] (left..right), constant-power law. */
         void setPan  (float newPan)     noexcept { targetPan.store (juce::jlimit (-1.0f, 1.0f, newPan), std::memory_order_relaxed); }
         void setMuted (bool shouldMute) noexcept { muted.store (shouldMute, std::memory_order_relaxed); }
+
+        // ── Volume automation ───────────────────────────────────────────────────
+        /** Provide the shared transport so the strip can read playhead position. */
+        void setTransport (Transport* t) noexcept { transport = t; }
+        /** Enable/disable automation override of the fader gain. */
+        void setAutomationEnabled (bool enabled) noexcept { automationEnabled.store (enabled, std::memory_order_relaxed); }
+        /** Publish a fresh automation snapshot (message thread). */
+        void setAutomationSnapshot (AutomationSnapshot::Ptr snap) { automationHolder.publish (std::move (snap)); }
+        void collectGarbage() { automationHolder.collectGarbage(); }
 
         /** Total number of audio samples this node has processed since the last
             prepareToPlay(). Read from the message thread (e.g. by a status timer)
@@ -105,6 +118,11 @@ namespace omnidaw::engine
 
         std::atomic<juce::int64> processedSamples { 0 };
         std::atomic<float> outputLevel { 0.0f };
+
+        // Automation override of the fader.
+        Transport* transport { nullptr };
+        std::atomic<bool> automationEnabled { false };
+        SnapshotHolder<AutomationSnapshot> automationHolder;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackProcessor)
     };

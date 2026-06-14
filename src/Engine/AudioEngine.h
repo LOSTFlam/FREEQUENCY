@@ -12,6 +12,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -67,8 +68,25 @@ namespace omnidaw::engine
         /** Rebuild the per-track MIDI / audio-clip snapshots (after clip edits). */
         void rebuildSequences();
 
+        /** Rebuild per-track volume-automation snapshots (after curve edits). */
+        void rebuildAutomation();
+
         /** Push current mixer values (volume/pan/mute) into the live nodes. */
         void syncParametersFromModel();
+
+        // ── Disk recording (punch-in) ───────────────────────────────────────────
+        /** Begin streaming the audio input to `file` as a WAV. Recording starts
+            at the current transport position. Returns true on success. */
+        bool startRecording (const juce::File& file);
+
+        /** Stop recording and drop the captured file onto a record-armed audio
+            track (or the first audio track) as a new clip. */
+        void stopRecording();
+
+        [[nodiscard]] bool isRecording() const noexcept { return recording.load (std::memory_order_relaxed); }
+
+        /** Called (on the message thread) after a recording is committed as a clip. */
+        std::function<void()> onRecordingFinished;
 
         [[nodiscard]] Transport& getTransport() noexcept { return transport; }
         [[nodiscard]] PluginManager& getPluginManager() noexcept { return pluginManager; }
@@ -92,7 +110,8 @@ namespace omnidaw::engine
             self-test to verify the engine actually produces audio without any
             soundcard present. Must only be called while NOT attached to a device.
         */
-        float renderOfflinePeak (double sampleRate, double seconds, int blockSize = 512);
+        float renderOfflinePeak (double sampleRate, double seconds, int blockSize = 512,
+                                 double measureFromSeconds = 0.0);
 
         /** Peek the master output level (0..1, post-fader) for metering. */
         [[nodiscard]] float getMasterLevel() const noexcept { return masterLevel.load (std::memory_order_relaxed); }
@@ -153,6 +172,19 @@ namespace omnidaw::engine
 
         double currentSampleRate { 44100.0 };
         int    currentBlockSize  { 512 };
+        int    currentInputChannels { 0 };
+
+        // Recording. The background thread does all disk I/O; the audio thread only
+        // pushes samples into the ThreadedWriter's lock-free FIFO. The CriticalSection
+        // guards only the (rare) swap of the active writer pointer — this mirrors
+        // JUCE's reference AudioRecordingDemo.
+        juce::TimeSliceThread recordThread { "OmniDAW Recorder" };
+        std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> threadedWriter;
+        juce::CriticalSection writerLock;
+        std::atomic<juce::AudioFormatWriter::ThreadedWriter*> activeWriter { nullptr };
+        juce::File recordFile;
+        double recordStartSeconds { 0.0 };
+        std::atomic<bool> recording { false };
 
         std::atomic<float> masterLevel { 0.0f };
         bool running { false };

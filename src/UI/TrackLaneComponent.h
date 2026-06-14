@@ -33,6 +33,9 @@ namespace omnidaw::ui
 
         void paint (juce::Graphics&) override;
         void mouseDoubleClick (const juce::MouseEvent&) override;
+        void mouseDown (const juce::MouseEvent&) override;
+        void mouseDrag (const juce::MouseEvent&) override;
+        void mouseUp (const juce::MouseEvent&) override;
 
         /** Rebuild waveform thumbnails after the clip list changes. */
         void refreshClips();
@@ -43,6 +46,13 @@ namespace omnidaw::ui
         void changeListenerCallback (juce::ChangeBroadcaster*) override;
         void drawMidiClip (juce::Graphics&, models::MidiClip&, juce::Rectangle<int> clipBounds);
         void drawAudioClip (juce::Graphics&, models::AudioClip&, int clipIndex, juce::Rectangle<int> clipBounds);
+        void drawAutomation (juce::Graphics&);
+
+        // Automation value (0..maxAutoValue) <-> lane y.
+        static constexpr float maxAutoValue = 1.5f;
+        [[nodiscard]] int valueToY (float value) const;
+        [[nodiscard]] float yToValue (int y) const;
+        [[nodiscard]] int findAutomationPoint (juce::Point<int> pos) const; // -1 if none
 
         UIContext& context;
         models::Track& trackRef;
@@ -51,6 +61,8 @@ namespace omnidaw::ui
         juce::AudioThumbnailCache thumbnailCache { 16 };
         juce::OwnedArray<juce::AudioThumbnail> thumbnails; // one per audio clip
         std::unique_ptr<juce::FileChooser> fileChooser;
+
+        int draggingPoint { -1 };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackLaneComponent)
     };

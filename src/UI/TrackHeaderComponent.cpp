@@ -35,6 +35,26 @@ namespace omnidaw::ui
             context.engine.syncParametersFromModel();
         };
 
+        addAndMakeVisible (autoButton);
+        autoButton.setClickingTogglesState (true);
+        autoButton.setToggleState (track.volumeAutomationEnabled, juce::dontSendNotification);
+        autoButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (OmniLookAndFeel::accent));
+        autoButton.onClick = [this]
+        {
+            trackRef.volumeAutomationEnabled = autoButton.getToggleState();
+
+            // Seed a flat curve at the current fader value so there's a line to grab.
+            if (trackRef.volumeAutomationEnabled && trackRef.volumeAutomation.isEmpty())
+            {
+                const float v = trackRef.getVolume();
+                trackRef.volumeAutomation.addPoint (0.0, v);
+                trackRef.volumeAutomation.addPoint (8.0, v);
+            }
+
+            context.engine.rebuildAutomation();
+            if (onAutomationToggled) onAutomationToggled();
+        };
+
         addAndMakeVisible (volumeSlider);
         volumeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         volumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -81,10 +101,12 @@ namespace omnidaw::ui
 
         r.removeFromTop (4);
         auto midRow = r.removeFromTop (22);
-        muteButton.setBounds (midRow.removeFromLeft (28).reduced (1));
-        midRow.removeFromLeft (4);
-        soloButton.setBounds (midRow.removeFromLeft (28).reduced (1));
-        midRow.removeFromLeft (8);
+        muteButton.setBounds (midRow.removeFromLeft (26).reduced (1));
+        midRow.removeFromLeft (3);
+        soloButton.setBounds (midRow.removeFromLeft (26).reduced (1));
+        midRow.removeFromLeft (3);
+        autoButton.setBounds (midRow.removeFromLeft (26).reduced (1));
+        midRow.removeFromLeft (6);
         panSlider.setBounds (midRow.removeFromRight (30));
 
         r.removeFromTop (4);

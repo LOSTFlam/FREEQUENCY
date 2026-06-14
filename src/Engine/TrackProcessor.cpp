@@ -66,14 +66,20 @@ namespace omnidaw::engine
         const int numSamples  = buffer.getNumSamples();
 
         // Pull the latest message-thread targets exactly once per block.
+        // When automation is enabled, the curve value at the current playhead
+        // position drives the gain instead of the static fader target.
+        float gainTarget = targetGain.load (std::memory_order_relaxed);
+
+        if (automationEnabled.load (std::memory_order_relaxed) && transport != nullptr)
+        {
+            if (auto snap = automationHolder.getForAudio())
+                gainTarget = snap->evaluate (transport->getPositionSamples());
+        }
+
         if (muted.load (std::memory_order_relaxed))
-        {
             smoothedGain.setTargetValue (0.0f);
-        }
         else
-        {
-            smoothedGain.setTargetValue (targetGain.load (std::memory_order_relaxed));
-        }
+            smoothedGain.setTargetValue (gainTarget);
 
         float panLeft = 1.0f, panRight = 1.0f;
         computePanGains (targetPan.load (std::memory_order_relaxed), panLeft, panRight);

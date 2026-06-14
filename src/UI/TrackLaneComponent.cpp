@@ -102,6 +102,124 @@ namespace omnidaw::ui
             else if (auto* audioClip = dynamic_cast<models::AudioClip*> (clip))
                 drawAudioClip (g, *audioClip, audioClipIndex++, clipBounds);
         }
+
+        if (trackRef.volumeAutomationEnabled)
+            drawAutomation (g);
+    }
+
+    int TrackLaneComponent::valueToY (float value) const
+    {
+        const float norm = juce::jlimit (0.0f, 1.0f, value / maxAutoValue);
+        return (int) ((1.0f - norm) * (getHeight() - 4)) + 2;
+    }
+
+    float TrackLaneComponent::yToValue (int y) const
+    {
+        const float norm = 1.0f - juce::jlimit (0.0f, 1.0f, (float) (y - 2) / (float) juce::jmax (1, getHeight() - 4));
+        return norm * maxAutoValue;
+    }
+
+    int TrackLaneComponent::findAutomationPoint (juce::Point<int> pos) const
+    {
+        const auto& curve = trackRef.volumeAutomation;
+        for (int i = 0; i < curve.getNumPoints(); ++i)
+        {
+            const auto& p = curve.getPoint (i);
+            const juce::Point<int> pt (context.secondsToX (p.time), valueToY (p.value));
+            if (pt.getDistanceFrom (pos) <= 7)
+                return i;
+        }
+        return -1;
+    }
+
+    void TrackLaneComponent::drawAutomation (juce::Graphics& g)
+    {
+        const auto& curve = trackRef.volumeAutomation;
+
+        // Dim the lane so the automation overlay reads clearly.
+        g.setColour (juce::Colour (OmniLookAndFeel::background).withAlpha (0.35f));
+        g.fillRect (getLocalBounds());
+
+        juce::Path path;
+        const auto accent = juce::Colour (OmniLookAndFeel::accentWarm);
+
+        if (curve.getNumPoints() == 0)
+            return;
+
+        for (int i = 0; i < curve.getNumPoints(); ++i)
+        {
+            const auto& p = curve.getPoint (i);
+            const float x = (float) context.secondsToX (p.time);
+            const float y = (float) valueToY (p.value);
+            if (i == 0) path.startNewSubPath (x, y);
+            else        path.lineTo (x, y);
+        }
+
+        g.setColour (accent);
+        g.strokePath (path, juce::PathStrokeType (1.6f));
+
+        for (int i = 0; i < curve.getNumPoints(); ++i)
+        {
+            const auto& p = curve.getPoint (i);
+            const float x = (float) context.secondsToX (p.time);
+            const float y = (float) valueToY (p.value);
+            g.setColour (i == draggingPoint ? juce::Colours::white : accent);
+            g.fillEllipse (x - 4.0f, y - 4.0f, 8.0f, 8.0f);
+        }
+    }
+
+    void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
+    {
+        if (! trackRef.volumeAutomationEnabled)
+            return;
+
+        auto& curve = trackRef.volumeAutomation;
+        const int hit = findAutomationPoint (e.getPosition());
+
+        if (e.mods.isRightButtonDown())
+        {
+            if (hit >= 0)
+            {
+                curve.removePoint (hit);
+                context.engine.rebuildAutomation();
+                repaint();
+            }
+            return;
+        }
+
+        if (hit >= 0)
+        {
+            draggingPoint = hit;
+        }
+        else
+        {
+            draggingPoint = curve.addPoint (juce::jmax (0.0, context.xToSeconds (e.x)), yToValue (e.y));
+            context.engine.rebuildAutomation();
+        }
+        repaint();
+    }
+
+    void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
+    {
+        if (! trackRef.volumeAutomationEnabled || draggingPoint < 0)
+            return;
+
+        trackRef.volumeAutomation.setPointTimeValue (draggingPoint,
+                                                     juce::jmax (0.0, context.xToSeconds (e.x)),
+                                                     yToValue (e.y));
+        context.engine.rebuildAutomation();
+        repaint();
+    }
+
+    void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
+    {
+        if (draggingPoint >= 0)
+        {
+            trackRef.volumeAutomation.sortPoints();
+            context.engine.rebuildAutomation();
+            draggingPoint = -1;
+            repaint();
+        }
     }
 
     void TrackLaneComponent::drawMidiClip (juce::Graphics& g, models::MidiClip& clip,
@@ -171,6 +289,10 @@ namespace omnidaw::ui
 
     void TrackLaneComponent::mouseDoubleClick (const juce::MouseEvent& e)
     {
+        // In automation mode, clicks edit the curve rather than create clips.
+        if (trackRef.volumeAutomationEnabled)
+            return;
+
         const auto clickedSeconds = juce::jmax (0.0, context.xToSeconds (e.x));
 
         if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&trackRef))

@@ -2,6 +2,7 @@
 
 #include "Core/Types.h"
 #include "Models/Clip.h"
+#include "Models/AutomationCurve.h"
 
 #include <juce_data_structures/juce_data_structures.h>
 
@@ -88,6 +89,13 @@ namespace omnidaw::models
         [[nodiscard]] Send* getSend (int index) const noexcept { return sends[index]; }
         Send* addSend (const juce::String& destBusId);
         void removeSend (int index);
+
+        // ── Volume automation ───────────────────────────────────────────────────
+        // When enabled, this curve drives the channel-strip gain over time instead
+        // of the static fader value. Edited on the message thread; the engine
+        // publishes a sampled snapshot to the audio thread.
+        AutomationCurve volumeAutomation;
+        bool volumeAutomationEnabled { false };
 
         // ── Clips ─────────────────────────────────────────────────────────────
         [[nodiscard]] int getNumClips() const noexcept { return clips.size(); }
