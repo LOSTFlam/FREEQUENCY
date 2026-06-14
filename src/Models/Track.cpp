@@ -50,6 +50,19 @@ namespace freequency::models
         }
     }
 
+    void Track::removeClip (Clip* clip)
+    {
+        for (int i = 0; i < clips.size(); ++i)
+        {
+            if (clips[i] == clip)
+            {
+                clips.remove (i);
+                sendChangeMessage();
+                return;
+            }
+        }
+    }
+
     Clip* Track::addClipInternal (std::unique_ptr<Clip> clip)
     {
         auto* raw = clips.add (clip.release());

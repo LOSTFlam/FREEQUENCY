@@ -24,7 +24,8 @@ namespace freequency::ui
         Strict layering still holds: this UI owns and drives the model/engine, but
         the model and engine never depend on it.
     */
-    class MainComponent final : public juce::Component
+    class MainComponent final : public juce::Component,
+                                public juce::ApplicationCommandTarget
     {
     public:
         MainComponent();
@@ -35,11 +36,41 @@ namespace freequency::ui
 
         void paint (juce::Graphics&) override;
         void resized() override;
-        bool keyPressed (const juce::KeyPress&) override;
+        bool keyStateChanged (bool isKeyDown) override; // computer-keyboard piano
+        void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
+
+        // ── ApplicationCommandTarget ────────────────────────────────────────────
+        ApplicationCommandTarget* getNextCommandTarget() override { return nullptr; }
+        void getAllCommands (juce::Array<juce::CommandID>&) override;
+        void getCommandInfo (juce::CommandID, juce::ApplicationCommandInfo&) override;
+        bool perform (const InvocationInfo&) override;
+
+        [[nodiscard]] juce::ApplicationCommandManager& getCommandManager() noexcept { return commandManager; }
 
     private:
         void buildDemoProject();
         void toggleMixer();
+
+        // Command actions.
+        void afterTrackChange();
+        void afterClipChange();
+        void toggleRecord();
+        void saveProjectAs();
+        void openProjectDialog();
+        void openKeyMappings();
+        void duplicateSelectedClip();
+        void splitSelectedClipAtPlayhead();
+        void deleteSelectedClip();
+        void nudgeSelectedClip (int direction);
+        void movePlayheadByBar (int direction);
+        void changeTempo (double delta);
+
+        // Computer-keyboard piano.
+        [[nodiscard]] models::MidiTrack* pianoTargetTrack() const;
+        void allPianoNotesOff();
+
+        juce::File keyMappingsFile() const;
+        void saveKeyMappings();
 
         FreequencyLookAndFeel lookAndFeel;
 
@@ -52,6 +83,15 @@ namespace freequency::ui
         std::unique_ptr<MixerView> mixerView;
         std::unique_ptr<StatusBar> statusBar;
         juce::OwnedArray<PluginEditorWindow> pluginWindows;
+
+        juce::ApplicationCommandManager commandManager;
+        std::unique_ptr<juce::DocumentWindow> keyMappingWindow;
+        std::unique_ptr<juce::FileChooser> fileChooser;
+
+        // Computer-keyboard piano state.
+        bool pianoEnabled { false };
+        int  pianoOctave { 5 };          // octave 5 => 'a' = C5 = MIDI 60
+        bool pianoKeyDown[13] { false };  // C..C across one octave + 1
 
         bool mixerVisible { false };
         juce::String engineStatus;

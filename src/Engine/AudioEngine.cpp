@@ -207,7 +207,17 @@ namespace freequency::engine
         // Channel strip is common to every track type and sits at the chain tail.
         auto stripNode = graph.addNode (std::make_unique<TrackProcessor> (track.name));
         chain.strip = stripNode->nodeID;
-        connectStereo (chain.strip, masterNode->nodeID);
+
+        // Route the strip to its assigned output bus (if any & resolvable), else
+        // straight to master.
+        NodeID destination = masterNode->nodeID;
+        if (track.outputBusId.isNotEmpty())
+        {
+            const auto busIt = busNodes.find (track.outputBusId.toStdString());
+            if (busIt != busNodes.end())
+                destination = busIt->second;
+        }
+        connectStereo (chain.strip, destination);
 
         // Head of the audio portion of the chain: instrument output (MIDI) or
         // clip-player output (audio). Bus/VCA tracks have no clip source in this
@@ -568,6 +578,20 @@ namespace freequency::engine
             return strip->getOutputLevel();
 
         return 0.0f;
+    }
+
+    void AudioEngine::sendLiveNote (const models::Track& track, int noteNumber, float velocity, bool noteOn) noexcept
+    {
+        const auto it = trackChains.find (track.getId().toDashedString().toStdString());
+        if (it == trackChains.end())
+            return;
+
+        if (auto* src = getMidiSource (it->second.source))
+        {
+            const auto m = noteOn ? juce::MidiMessage::noteOn (1, noteNumber, velocity)
+                                  : juce::MidiMessage::noteOff (1, noteNumber);
+            src->pushLiveMessage (m);
+        }
     }
 
     juce::AudioProcessor* AudioEngine::getInsertProcessor (const models::Track& track, int slot) const noexcept

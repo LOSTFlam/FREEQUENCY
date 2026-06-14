@@ -59,6 +59,11 @@ namespace freequency::models
         juce::String name;
         juce::Colour colour { juce::Colours::grey };
 
+        /** Destination bus id (dashed UUID) for this track's main output; empty
+            means route directly to the master bus. Lets a track be "thrown" onto
+            any mixer bus/group. */
+        juce::String outputBusId;
+
         // ── Mixer state (lock-free readable) ──────────────────────────────────
         // Stored as linear gain (1.0 == unity) and pan in [-1, +1].
         [[nodiscard]] float getVolume() const noexcept { return volume.load (std::memory_order_relaxed); }
@@ -102,6 +107,7 @@ namespace freequency::models
         // ── Clips ─────────────────────────────────────────────────────────────
         [[nodiscard]] int getNumClips() const noexcept { return clips.size(); }
         [[nodiscard]] Clip* getClip (int index) const noexcept { return clips[index]; }
+        void removeClip (Clip* clip);
 
     protected:
         /** Subclasses add clips through here so they can enforce the clip type. */

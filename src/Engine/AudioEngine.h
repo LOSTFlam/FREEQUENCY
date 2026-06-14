@@ -76,6 +76,10 @@ namespace freequency::engine
         /** Push current mixer values (volume/pan/mute) into the live nodes. */
         void syncParametersFromModel();
 
+        /** Send a live note on/off to a MIDI track's instrument (computer-keyboard
+            piano). No-op for non-MIDI tracks. */
+        void sendLiveNote (const models::Track& track, int noteNumber, float velocity, bool noteOn) noexcept;
+
         // ── Disk recording (punch-in) ───────────────────────────────────────────
         /** Begin streaming the audio input to `file` as a WAV. Recording starts
             at the current transport position. Returns true on success. */

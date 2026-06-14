@@ -6,6 +6,10 @@ namespace freequency::ui
     ArrangeView::ArrangeView (UIContext& ctx)
         : context (ctx), ruler (ctx), playhead (ctx)
     {
+        // Expose refresh hooks so commands/selection elsewhere can update the view.
+        context.repaintArrange = [this] { repaintLanes(); };
+        context.rebuildArrange = [this] { rebuildTracks(); };
+
         addAndMakeVisible (ruler);
 
         headerViewport.setViewedComponent (&headerContent, false);
@@ -58,6 +62,12 @@ namespace freequency::ui
         }
 
         updateContentSize();
+    }
+
+    void ArrangeView::repaintLanes()
+    {
+        for (auto* lane : lanes)
+            lane->repaint();
     }
 
     double ArrangeView::computeContentSeconds() const

@@ -29,6 +29,13 @@ namespace freequency::ui
         // invalidates the live insert processors those windows reference).
         std::function<void()> closePluginWindows;
 
+        // Selection (drives keyboard clip-editing commands).
+        models::Track* selectedTrack { nullptr };
+        models::Clip*  selectedClip  { nullptr };
+
+        std::function<void()> repaintArrange; // lightweight: repaint lanes
+        std::function<void()> rebuildArrange; // structural: recreate lanes after add/remove
+
         double pixelsPerSecond { 90.0 };
 
         // Grid snap (FL/Cubase-style). Clip placement snaps to this division.

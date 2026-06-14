@@ -34,6 +34,12 @@ namespace freequency::engine
         void setSnapshot (MidiSequenceSnapshot::Ptr snapshot) { holder.publish (std::move (snapshot)); }
         void collectGarbage() { holder.collectGarbage(); }
 
+        /** Push a live MIDI message (computer-keyboard piano / live input) to be
+            emitted at the start of the next block. Lock-free, RT-safe: short
+            messages (note on/off) live in MidiMessage's inline storage, so no
+            allocation occurs. Called from the message thread. */
+        void pushLiveMessage (const juce::MidiMessage& m) noexcept;
+
         void prepareToPlay (double, int) override;
         void releaseResources() override {}
         void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
@@ -60,6 +66,11 @@ namespace freequency::engine
         Transport& transport;
         SnapshotHolder<MidiSequenceSnapshot> holder;
         bool wasPlaying { false };
+
+        // Lock-free single-producer/single-consumer queue for live MIDI.
+        static constexpr int liveCapacity = 512;
+        juce::MidiMessage liveQueue[liveCapacity];
+        juce::AbstractFifo liveFifo { liveCapacity };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiSourceProcessor)
     };

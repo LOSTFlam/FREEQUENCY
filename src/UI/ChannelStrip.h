@@ -57,6 +57,8 @@ namespace freequency::ui
         juce::TextButton soloButton { "S" };
         juce::TextButton fxButton { "FX +" };
         juce::OwnedArray<juce::TextButton> insertButtons; // one per insert slot
+        juce::ComboBox outBox;                            // output bus selector (track role)
+        juce::StringArray outBusIds;                      // parallel to outBox items (index 0 = master)
 
         juce::OwnedArray<juce::Slider> sendKnobs;   // one per FX bus (track role)
         juce::OwnedArray<juce::Label> sendLabels;

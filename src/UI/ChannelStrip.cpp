@@ -59,6 +59,35 @@ namespace freequency::ui
                 context.engine.syncParametersFromModel();
             };
 
+            // ── Output routing (route this track onto any mixer bus) ────────────
+            addAndMakeVisible (outBox);
+            {
+                auto& mixer = context.project.getMixer();
+                outBox.addItem ("> Master", 1);
+                outBusIds.add (""); // index 0 == master
+                for (int i = 0; i < mixer.getNumBuses(); ++i)
+                {
+                    auto* ob = mixer.getBus (i);
+                    if (ob == nullptr || ob->getKind() == models::Bus::Kind::master)
+                        continue;
+                    outBusIds.add (ob->getId().toDashedString());
+                    outBox.addItem ("> " + ob->name, outBox.getNumItems() + 1);
+                }
+                const int sel = juce::jmax (0, outBusIds.indexOf (track->outputBusId));
+                outBox.setSelectedId (sel + 1, juce::dontSendNotification);
+                outBox.onChange = [this]
+                {
+                    const int idx = outBox.getSelectedId() - 1;
+                    if (idx >= 0 && idx < outBusIds.size())
+                    {
+                        track->outputBusId = outBusIds[idx];
+                        if (context.closePluginWindows) context.closePluginWindows();
+                        context.engine.rebuildGraph();
+                        if (onRoutingChanged) onRoutingChanged();
+                    }
+                };
+            }
+
             // ── Insert FX slots ────────────────────────────────────────────────
             addAndMakeVisible (fxButton);
             fxButton.setColour (juce::TextButton::buttonColourId, juce::Colour (FreequencyLookAndFeel::panelLight));
@@ -282,6 +311,9 @@ namespace freequency::ui
 
         if (role == Role::track)
         {
+            outBox.setBounds (r.removeFromTop (18));
+            r.removeFromTop (3);
+
             // Insert FX list at the top of the strip.
             fxButton.setBounds (r.removeFromTop (18));
             for (auto* ib : insertButtons)

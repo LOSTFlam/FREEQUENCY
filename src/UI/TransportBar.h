@@ -32,6 +32,9 @@ namespace freequency::ui
         /** Called when the user toggles the mixer view. */
         std::function<void()> onToggleMixer;
 
+        /** Called when the user opens the keyboard-shortcuts editor. */
+        std::function<void()> onOpenSettings;
+
         void paint (juce::Graphics&) override;
         void resized() override;
 
@@ -57,6 +60,7 @@ namespace freequency::ui
         juce::TextButton mixerButton    { "Mixer" };
         juce::TextButton saveButton     { "Save" };
         juce::TextButton openButton     { "Open" };
+        juce::TextButton keysButton     { "Keys" };
 
         std::unique_ptr<juce::FileChooser> fileChooser;
 

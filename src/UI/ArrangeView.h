@@ -38,6 +38,9 @@ namespace freequency::ui
         /** Recreate header + lane components from the current track list. */
         void rebuildTracks();
 
+        /** Lightweight: repaint all lanes (e.g. after a selection change). */
+        void repaintLanes();
+
         void resized() override;
         void paint (juce::Graphics&) override;
 

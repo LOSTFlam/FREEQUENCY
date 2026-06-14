@@ -126,6 +126,9 @@ namespace freequency::ui
         mixerButton.setClickingTogglesState (true);
         mixerButton.onClick = [this] { if (onToggleMixer) onToggleMixer(); };
 
+        addAndMakeVisible (keysButton);
+        keysButton.onClick = [this] { if (onOpenSettings) onOpenSettings(); };
+
         addAndMakeVisible (saveButton);
         saveButton.onClick = [this]
         {
@@ -241,6 +244,14 @@ namespace freequency::ui
         limiterButton.setToggleState (context.engine.isLimiterEnabled(), juce::dontSendNotification);
         loopButton.setToggleState (t.isLooping(), juce::dontSendNotification);
 
+        // Keep the tempo read-out in sync with tempo changed via tap / shortcuts.
+        if (! tempoLabel.isBeingEdited())
+        {
+            const auto bpm = juce::String (context.project.getTimeline().getTempoBpm(), 1);
+            if (tempoLabel.getText() != bpm)
+                tempoLabel.setText (bpm, juce::dontSendNotification);
+        }
+
         const auto seconds = t.getPositionSeconds();
         const auto tempo = context.project.getTimeline().getTempoBpm();
         const auto sig = context.project.getTimeline().getTimeSigNumerator();
@@ -320,5 +331,6 @@ namespace freequency::ui
         button (limiterButton, 44);
         button (saveButton, 52);
         button (openButton, 52);
+        button (keysButton, 52);
     }
 } // namespace freequency::ui

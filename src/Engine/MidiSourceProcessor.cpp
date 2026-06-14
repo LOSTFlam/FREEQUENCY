@@ -13,9 +13,26 @@ namespace freequency::engine
         wasPlaying = false;
     }
 
+    void MidiSourceProcessor::pushLiveMessage (const juce::MidiMessage& m) noexcept
+    {
+        const auto scope = liveFifo.write (1);
+        if (scope.blockSize1 > 0)      liveQueue[scope.startIndex1] = m;
+        else if (scope.blockSize2 > 0) liveQueue[scope.startIndex2] = m;
+    }
+
     void MidiSourceProcessor::processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer& midi)
     {
         midi.clear();
+
+        // Emit any live (computer-keyboard) notes first, at the block start, so the
+        // instrument plays them immediately regardless of transport state.
+        {
+            const auto scope = liveFifo.read (liveFifo.getNumReady());
+            for (int i = 0; i < scope.blockSize1; ++i)
+                midi.addEvent (liveQueue[scope.startIndex1 + i], 0);
+            for (int i = 0; i < scope.blockSize2; ++i)
+                midi.addEvent (liveQueue[scope.startIndex2 + i], 0);
+        }
 
         const bool playing = transport.isPlaying();
 

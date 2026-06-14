@@ -83,11 +83,12 @@ namespace freequency::ui
 
             auto clipBounds = juce::Rectangle<int> (x, 2, w, getHeight() - 6);
 
-            // Clip body.
-            g.setColour (trackRef.colour.withAlpha (0.30f));
+            // Clip body (selected clip is highlighted with a brighter, thicker border).
+            const bool selected = (clip == context.selectedClip);
+            g.setColour (trackRef.colour.withAlpha (selected ? 0.45f : 0.30f));
             g.fillRoundedRectangle (clipBounds.toFloat(), 4.0f);
-            g.setColour (trackRef.colour.withAlpha (0.9f));
-            g.drawRoundedRectangle (clipBounds.toFloat().reduced (0.5f), 4.0f, 1.2f);
+            g.setColour (selected ? juce::Colours::white : trackRef.colour.withAlpha (0.9f));
+            g.drawRoundedRectangle (clipBounds.toFloat().reduced (0.5f), 4.0f, selected ? 2.2f : 1.2f);
 
             // Title bar.
             auto titleBar = clipBounds.removeFromTop (14);
@@ -171,7 +172,26 @@ namespace freequency::ui
     void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
     {
         if (! trackRef.volumeAutomationEnabled)
+        {
+            // Clip selection (drives keyboard editing commands).
+            const double t = context.xToSeconds (e.x);
+            models::Clip* hit = nullptr;
+            for (int i = 0; i < trackRef.getNumClips(); ++i)
+            {
+                auto* clip = trackRef.getClip (i);
+                const double len = clip->length > 0.0 ? clip->length : 2.0;
+                if (t >= clip->startTime && t < clip->startTime + len)
+                {
+                    hit = clip;
+                    break;
+                }
+            }
+
+            context.selectedTrack = &trackRef;
+            context.selectedClip = hit;
+            if (context.repaintArrange) context.repaintArrange();
             return;
+        }
 
         auto& curve = trackRef.volumeAutomation;
         const int hit = findAutomationPoint (e.getPosition());
