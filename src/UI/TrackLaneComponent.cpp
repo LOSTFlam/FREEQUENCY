@@ -85,6 +85,106 @@ namespace freequency::ui
             importAudioFile (file, context.snapTime (context.xToSeconds (d.localPosition.x)));
     }
 
+    juce::Rectangle<int> TrackLaneComponent::clipBoundsFor (models::Clip& clip) const
+    {
+        const auto x = context.secondsToX (clip.startTime);
+        auto length = clip.length > 0.0 ? clip.length : 2.0;
+        const auto w = juce::jmax (4, context.secondsToX (length));
+        return { x, 2, w, getHeight() - 6 };
+    }
+
+    models::Clip* TrackLaneComponent::clipAtTime (double seconds) const
+    {
+        for (int i = 0; i < trackRef.getNumClips(); ++i)
+        {
+            auto* clip = trackRef.getClip (i);
+            const double len = clip->length > 0.0 ? clip->length : 2.0;
+            if (seconds >= clip->startTime && seconds < clip->startTime + len)
+                return clip;
+        }
+        return nullptr;
+    }
+
+    TrackLaneComponent::ClipDragMode TrackLaneComponent::hitTestClip (models::Clip& clip,
+                                                                      juce::Point<int> pos) const
+    {
+        const auto bounds = clipBoundsFor (clip);
+        if (! bounds.contains (pos))
+            return ClipDragMode::none;
+
+        if (pos.x - bounds.getX() <= trimHandleW)
+            return ClipDragMode::trimLeft;
+        if (bounds.getRight() - pos.x <= trimHandleW)
+            return ClipDragMode::trimRight;
+        return ClipDragMode::move;
+    }
+
+    double TrackLaneComponent::audioSourceDuration (models::AudioClip& clip) const
+    {
+        for (int i = 0; i < trackRef.getNumClips(); ++i)
+        {
+            if (auto* ac = dynamic_cast<models::AudioClip*> (trackRef.getClip (i)))
+            {
+                if (ac == &clip)
+                {
+                    if (i < thumbnails.size() && thumbnails[i] != nullptr)
+                    {
+                        const auto len = thumbnails[i]->getTotalLength();
+                        if (len > 0.0)
+                            return len;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (clip.sourceFile.existsAsFile())
+        {
+            if (auto reader = std::unique_ptr<juce::AudioFormatReader> (
+                    context.engine.getFormatManager().createReaderFor (clip.sourceFile)))
+                if (reader->sampleRate > 0)
+                    return (double) reader->lengthInSamples / reader->sampleRate;
+        }
+
+        return clip.length > 0.0 ? clip.length : 2.0;
+    }
+
+    void TrackLaneComponent::drawTrimHandles (juce::Graphics& g, juce::Rectangle<int> clipBounds,
+                                              bool selected)
+    {
+        if (! selected)
+            return;
+
+        g.setColour (juce::Colours::white.withAlpha (0.85f));
+        const int h = clipBounds.getHeight();
+        g.fillRect (clipBounds.getX(), clipBounds.getY(), 2, h);
+        g.fillRect (clipBounds.getRight() - 2, clipBounds.getY(), 2, h);
+    }
+
+    void TrackLaneComponent::mouseMove (const juce::MouseEvent& e)
+    {
+        if (trackRef.volumeAutomationEnabled)
+            return;
+
+        const double t = context.xToSeconds (e.x);
+        ClipDragMode mode = ClipDragMode::none;
+
+        if (auto* clip = clipAtTime (t))
+            mode = hitTestClip (*clip, e.getPosition());
+
+        if (mode != hoverMode)
+        {
+            hoverMode = mode;
+            switch (mode)
+            {
+                case ClipDragMode::trimLeft:
+                case ClipDragMode::trimRight: setMouseCursor (juce::MouseCursor::LeftRightResizeCursor); break;
+                case ClipDragMode::move:      setMouseCursor (juce::MouseCursor::DraggingHandCursor); break;
+                default:                      setMouseCursor (juce::MouseCursor::NormalCursor); break;
+            }
+        }
+    }
+
     void TrackLaneComponent::paint (juce::Graphics& g)
     {
         // Alternating lane background for readability.
@@ -127,6 +227,8 @@ namespace freequency::ui
             g.fillRoundedRectangle (clipBounds.toFloat(), 4.0f);
             g.setColour (selected ? juce::Colours::white : trackRef.colour.withAlpha (0.9f));
             g.drawRoundedRectangle (clipBounds.toFloat().reduced (0.5f), 4.0f, selected ? 2.2f : 1.2f);
+
+            drawTrimHandles (g, clipBounds, selected);
 
             // Title bar.
             auto titleBar = clipBounds.removeFromTop (14);
@@ -211,27 +313,23 @@ namespace freequency::ui
     {
         if (! trackRef.volumeAutomationEnabled)
         {
-            // Clip selection (drives keyboard editing commands).
             const double t = context.xToSeconds (e.x);
-            models::Clip* hit = nullptr;
-            for (int i = 0; i < trackRef.getNumClips(); ++i)
-            {
-                auto* clip = trackRef.getClip (i);
-                const double len = clip->length > 0.0 ? clip->length : 2.0;
-                if (t >= clip->startTime && t < clip->startTime + len)
-                {
-                    hit = clip;
-                    break;
-                }
-            }
+            models::Clip* hit = clipAtTime (t);
 
             context.selectedTrack = &trackRef;
             context.selectedClip = hit;
 
-            // Begin a potential clip drag (move). The actual move happens in
-            // mouseDrag; a mouse-up with no movement is just a selection.
             dragClip = hit;
             dragOrigStart = hit != nullptr ? hit->startTime : 0.0;
+            dragOrigLength = hit != nullptr && hit->length > 0.0 ? hit->length : 2.0;
+            dragOrigSourceOffset = 0.0;
+            if (auto* ac = dynamic_cast<models::AudioClip*> (hit))
+                dragOrigSourceOffset = ac->sourceOffset;
+
+            dragMode = hit != nullptr ? hitTestClip (*hit, e.getPosition()) : ClipDragMode::none;
+            if (e.mods.isAltDown() && hit != nullptr)
+                dragMode = ClipDragMode::slip;
+
             dragStartX = e.x;
             didDrag = false;
 
@@ -267,7 +365,7 @@ namespace freequency::ui
 
     void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
     {
-        // Clip move (arrange mode).
+        // Clip editing (arrange mode).
         if (! trackRef.volumeAutomationEnabled && dragClip != nullptr)
         {
             if (! didDrag)
@@ -275,8 +373,46 @@ namespace freequency::ui
                 if (context.pushUndo) context.pushUndo();
                 didDrag = true;
             }
+
             const double deltaSec = context.xToSeconds (e.x) - context.xToSeconds (dragStartX);
-            dragClip->startTime = context.snapTime (juce::jmax (0.0, dragOrigStart + deltaSec));
+            const double minLen = context.snapTime (0.0625); // ~1/16 at 120 BPM
+
+            switch (dragMode)
+            {
+                case ClipDragMode::move:
+                    dragClip->startTime = context.snapTime (juce::jmax (0.0, dragOrigStart + deltaSec));
+                    break;
+
+                case ClipDragMode::trimLeft:
+                {
+                    const double newStart = context.snapTime (juce::jmax (0.0, dragOrigStart + deltaSec));
+                    const double trimDelta = newStart - dragOrigStart;
+                    dragClip->startTime = newStart;
+                    dragClip->length = juce::jmax (minLen, dragOrigLength - trimDelta);
+
+                    if (auto* ac = dynamic_cast<models::AudioClip*> (dragClip))
+                    {
+                        const double maxOffset = juce::jmax (0.0, audioSourceDuration (*ac) - dragOrigLength);
+                        ac->sourceOffset = juce::jlimit (0.0, maxOffset, dragOrigSourceOffset + trimDelta);
+                    }
+                    break;
+                }
+
+                case ClipDragMode::trimRight:
+                    dragClip->length = context.snapTime (juce::jmax (minLen, dragOrigLength + deltaSec));
+                    break;
+
+                case ClipDragMode::slip:
+                    if (auto* ac = dynamic_cast<models::AudioClip*> (dragClip))
+                    {
+                        const double maxOffset = juce::jmax (0.0, audioSourceDuration (*ac) - dragOrigLength);
+                        ac->sourceOffset = juce::jlimit (0.0, maxOffset, dragOrigSourceOffset + deltaSec);
+                    }
+                    break;
+
+                default: break;
+            }
+
             repaint();
             return;
         }
@@ -296,8 +432,9 @@ namespace freequency::ui
         if (dragClip != nullptr)
         {
             if (didDrag)
-                context.engine.rebuildSequences(); // clip moved -> resync playback timing
+                context.engine.rebuildSequences();
             dragClip = nullptr;
+            dragMode = ClipDragMode::none;
             didDrag = false;
         }
 

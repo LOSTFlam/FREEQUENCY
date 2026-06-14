@@ -32,6 +32,9 @@ namespace freequency::ui
         slideButton.setColour (juce::TextButton::buttonOnColourId, theme().accentWarm);
         slideButton.onClick = [this] { slideMode = slideButton.getToggleState(); };
 
+        addAndMakeVisible (quantButton);
+        quantButton.onClick = [this] { quantizeSelected(); };
+
         addAndMakeVisible (snapBox);
         snapBox.addItemList ({ "1/4", "1/8", "1/16", "1/32", "Off" }, 1);
         snapBox.setSelectedId (3, juce::dontSendNotification); // 1/16
@@ -65,6 +68,7 @@ namespace freequency::ui
 
         loadFromClip();
         startTimerHz (30);
+        setWantsKeyboardFocus (true);
 
         // Scroll so a useful range (around middle C) is visible initially.
         juce::MessageManager::callAsync ([this]
@@ -179,6 +183,100 @@ namespace freequency::ui
         writeBackToClip();
     }
 
+    void PianoRollEditor::quantizeSelected()
+    {
+        if (snapGrid <= 0.0)
+            return;
+
+        bool any = false;
+        for (auto& n : notes)
+            if (n.selected) { any = true; break; }
+        if (! any)
+            return;
+
+        if (context.pushUndo) context.pushUndo();
+
+        for (auto& n : notes)
+        {
+            if (! n.selected)
+                continue;
+            n.startBeats = snapBeats (n.startBeats);
+            n.lengthBeats = juce::jmax (snapGrid, std::round (n.lengthBeats / snapGrid) * snapGrid);
+        }
+
+        writeBackToClip();
+    }
+
+    void PianoRollEditor::copySelected()
+    {
+        clipboard.clear();
+        for (const auto& n : notes)
+            if (n.selected)
+                clipboard.push_back (n);
+    }
+
+    void PianoRollEditor::pasteNotes()
+    {
+        if (clipboard.empty())
+            return;
+
+        if (context.pushUndo) context.pushUndo();
+
+        const double pasteOffset = snapGrid > 0 ? snapGrid : 0.25;
+        for (auto& n : notes)
+            n.selected = false;
+
+        for (const auto& src : clipboard)
+        {
+            Note n = src;
+            n.startBeats += pasteOffset;
+            n.selected = true;
+            notes.push_back (n);
+        }
+
+        writeBackToClip();
+    }
+
+    void PianoRollEditor::selectAll()
+    {
+        for (auto& n : notes)
+            n.selected = true;
+        gridComp.repaint();
+        velLane.repaint();
+    }
+
+    bool PianoRollEditor::keyPressed (const juce::KeyPress& key)
+    {
+        if (key == juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0)
+            || key == juce::KeyPress ('c', juce::ModifierKeys::ctrlModifier, 0))
+        {
+            copySelected();
+            return true;
+        }
+
+        if (key == juce::KeyPress ('v', juce::ModifierKeys::commandModifier, 0)
+            || key == juce::KeyPress ('v', juce::ModifierKeys::ctrlModifier, 0))
+        {
+            pasteNotes();
+            return true;
+        }
+
+        if (key == juce::KeyPress ('a', juce::ModifierKeys::commandModifier, 0)
+            || key == juce::KeyPress ('a', juce::ModifierKeys::ctrlModifier, 0))
+        {
+            selectAll();
+            return true;
+        }
+
+        if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+        {
+            deleteSelected();
+            return true;
+        }
+
+        return false;
+    }
+
     void PianoRollEditor::deleteSelected()
     {
         if (context.pushUndo) context.pushUndo();
@@ -215,6 +313,8 @@ namespace freequency::ui
         arpButton.setBounds (toolbar.removeFromLeft (60));
         toolbar.removeFromLeft (6);
         slideButton.setBounds (toolbar.removeFromLeft (60));
+        toolbar.removeFromLeft (6);
+        quantButton.setBounds (toolbar.removeFromLeft (60));
 
         auto velArea = r.removeFromBottom (velLaneH);
         velArea.removeFromLeft (gutterW);
@@ -328,6 +428,7 @@ namespace freequency::ui
 
     void PianoRollEditor::Grid::mouseDown (const juce::MouseEvent& e)
     {
+        owner.grabKeyboardFocus();
         const int idx = noteAt (e.getPosition());
 
         if (e.mods.isRightButtonDown())
@@ -343,14 +444,17 @@ namespace freequency::ui
 
         if (idx < 0)
         {
-            // Create a new note at the click.
             if (owner.context.pushUndo) owner.context.pushUndo();
+            if (! e.mods.isShiftDown())
+                for (auto& n : owner.notes) n.selected = false;
+
             Note n;
             n.startBeats = owner.snapBeats (owner.xToBeats (e.x));
             n.pitch = owner.yToPitch (e.y);
             n.lengthBeats = owner.snapGrid > 0 ? owner.snapGrid : 0.5;
             n.velocity = 100;
             n.slide = owner.slideMode;
+            n.selected = true;
             owner.notes.push_back (n);
             dragIndex = (int) owner.notes.size() - 1;
             mode = Mode::move;
@@ -359,11 +463,16 @@ namespace freequency::ui
         {
             dragIndex = idx;
             mode = overRightEdge (idx, e.getPosition()) ? Mode::resize : Mode::move;
+
+            if (! e.mods.isShiftDown())
+                for (auto& n : owner.notes) n.selected = false;
+
+            owner.notes[(size_t) idx].selected = e.mods.isShiftDown()
+                                                      ? ! owner.notes[(size_t) idx].selected
+                                                      : true;
+
             if (owner.context.pushUndo) owner.context.pushUndo();
         }
-
-        for (auto& n : owner.notes) n.selected = false;
-        if (dragIndex >= 0) owner.notes[(size_t) dragIndex].selected = true;
 
         dragStart = e.getPosition();
         if (dragIndex >= 0)

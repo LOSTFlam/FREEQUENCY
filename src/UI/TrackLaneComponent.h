@@ -22,6 +22,7 @@ namespace freequency::ui
         - Double-click an empty MIDI lane: insert a 2-bar clip with a starter
           pattern.
         - Double-click an empty audio lane: import an audio file at that position.
+        - Drag clip body to move; drag left/right edges to trim; Alt+drag to slip.
         After any edit the engine's sequences are rebuilt so playback matches.
     */
     class TrackLaneComponent final : public juce::Component,
@@ -37,6 +38,7 @@ namespace freequency::ui
         void mouseDown (const juce::MouseEvent&) override;
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseUp (const juce::MouseEvent&) override;
+        void mouseMove (const juce::MouseEvent&) override;
 
         /** Rebuild waveform thumbnails after the clip list changes. */
         void refreshClips();
@@ -51,13 +53,22 @@ namespace freequency::ui
         void importAudioFile (const juce::File&, double startSeconds);
 
     private:
+        enum class ClipDragMode { none, move, trimLeft, trimRight, slip };
+
         void changeListenerCallback (juce::ChangeBroadcaster*) override;
         void drawMidiClip (juce::Graphics&, models::MidiClip&, juce::Rectangle<int> clipBounds);
         void drawAudioClip (juce::Graphics&, models::AudioClip&, int clipIndex, juce::Rectangle<int> clipBounds);
         void drawAutomation (juce::Graphics&);
+        void drawTrimHandles (juce::Graphics&, juce::Rectangle<int> clipBounds, bool selected);
+
+        [[nodiscard]] models::Clip* clipAtTime (double seconds) const;
+        [[nodiscard]] ClipDragMode hitTestClip (models::Clip& clip, juce::Point<int> pos) const;
+        [[nodiscard]] juce::Rectangle<int> clipBoundsFor (models::Clip& clip) const;
+        [[nodiscard]] double audioSourceDuration (models::AudioClip& clip) const;
 
         // Automation value (0..maxAutoValue) <-> lane y.
         static constexpr float maxAutoValue = 1.5f;
+        static constexpr int trimHandleW = 8;
         [[nodiscard]] int valueToY (float value) const;
         [[nodiscard]] float yToValue (int y) const;
         [[nodiscard]] int findAutomationPoint (juce::Point<int> pos) const; // -1 if none
@@ -72,11 +83,15 @@ namespace freequency::ui
 
         int draggingPoint { -1 };
 
-        // Clip drag-to-move state.
+        // Clip editing state.
         models::Clip* dragClip { nullptr };
+        ClipDragMode dragMode { ClipDragMode::none };
         double dragOrigStart { 0.0 };
+        double dragOrigLength { 0.0 };
+        double dragOrigSourceOffset { 0.0 };
         int    dragStartX { 0 };
         bool   didDrag { false };
+        ClipDragMode hoverMode { ClipDragMode::none };
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TrackLaneComponent)
     };

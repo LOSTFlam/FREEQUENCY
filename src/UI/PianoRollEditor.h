@@ -32,6 +32,7 @@ namespace freequency::ui
 
         void paint (juce::Graphics&) override;
         void resized() override;
+        bool keyPressed (const juce::KeyPress&) override;
 
     private:
         struct Note
@@ -107,8 +108,14 @@ namespace freequency::ui
         void loadFromClip();
         void writeBackToClip();
         void applyArpeggiator();
+        void quantizeSelected();
+        void copySelected();
+        void pasteNotes();
+        void selectAll();
         void deleteSelected();
         void timerCallback() override;
+
+        std::vector<Note> clipboard;
 
         UIContext& context;
         models::MidiClip& clip;
@@ -125,6 +132,7 @@ namespace freequency::ui
         juce::TextButton closeButton { "Close" };
         juce::TextButton arpButton { "Arp" };
         juce::TextButton slideButton { "Slide" };
+        juce::TextButton quantButton { "Quant" };
         juce::ComboBox snapBox;
 
         Keys keysComp { *this };

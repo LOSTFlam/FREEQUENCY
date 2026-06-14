@@ -502,6 +502,206 @@ namespace freequency::dsp
         phaser.process (ctx);
     }
 
+    // ── Tremolo ──────────────────────────────────────────────────────────────────
+    TremoloProcessor::TremoloProcessor()
+        : BuiltinEffectBase ("Tremolo", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("rate", "Rate", { 0.05f, 20.0f, 0.001f }, 4.0f));
+              l.add (fparam ("depth", "Depth", { 0.0f, 1.0f, 0.001f }, 0.5f));
+              l.add (fparam ("mix", "Mix", { 0.0f, 1.0f, 0.001f }, 1.0f));
+              return l;
+          }())
+    {
+    }
+
+    void TremoloProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const float rate = apvts.getRawParameterValue ("rate")->load();
+        const float depth = apvts.getRawParameterValue ("depth")->load();
+        const float mix = apvts.getRawParameterValue ("mix")->load();
+        const float inc = rate / (float) sr;
+
+        const int n = buffer.getNumSamples();
+        const int ch = buffer.getNumChannels();
+
+        for (int i = 0; i < n; ++i)
+        {
+            const float mod = 1.0f - depth * (0.5f + 0.5f * std::sin (phase * juce::MathConstants<float>::twoPi));
+            phase += inc;
+            if (phase >= 1.0f) phase -= 1.0f;
+
+            for (int c = 0; c < ch; ++c)
+            {
+                const float dry = buffer.getSample (c, i);
+                buffer.setSample (c, i, dry * (1.0f - mix) + dry * mod * mix);
+            }
+        }
+    }
+
+    // ── Flanger ──────────────────────────────────────────────────────────────────
+    FlangerProcessor::FlangerProcessor()
+        : BuiltinEffectBase ("Flanger", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("rate", "Rate", { 0.01f, 10.0f, 0.001f }, 0.5f));
+              l.add (fparam ("depth", "Depth", { 0.0f, 1.0f, 0.001f }, 0.7f));
+              l.add (fparam ("feedback", "Feedback", { -0.95f, 0.95f, 0.001f }, 0.3f));
+              l.add (fparam ("mix", "Mix", { 0.0f, 1.0f, 0.001f }, 0.5f));
+              return l;
+          }())
+    {
+    }
+
+    void FlangerProcessor::prepareToPlay (double sampleRate, int)
+    {
+        sr = sampleRate;
+        delayL.prepare ({ sampleRate, 512, 2 });
+        delayR.prepare ({ sampleRate, 512, 2 });
+        delayL.setMaximumDelayInSamples (4096);
+        delayR.setMaximumDelayInSamples (4096);
+    }
+
+    void FlangerProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const float rate = apvts.getRawParameterValue ("rate")->load();
+        const float depth = apvts.getRawParameterValue ("depth")->load();
+        const float fb = apvts.getRawParameterValue ("feedback")->load();
+        const float mix = apvts.getRawParameterValue ("mix")->load();
+        const float inc = rate / (float) sr;
+        const float baseDelay = 3.0f; // ms
+        const float maxDelayMs = 10.0f;
+
+        auto* L = buffer.getWritePointer (0);
+        auto* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
+        const int n = buffer.getNumSamples();
+
+        for (int i = 0; i < n; ++i)
+        {
+            const float lfo = 0.5f + 0.5f * std::sin (phase * juce::MathConstants<float>::twoPi);
+            phase += inc;
+            if (phase >= 1.0f) phase -= 1.0f;
+
+            const float delayMs = baseDelay + lfo * depth * maxDelayMs;
+            const float delaySamps = delayMs * 0.001f * (float) sr;
+
+            const float dryL = L[i];
+            delayL.setDelay (delaySamps);
+            const float tapL = delayL.popSample (0);
+            delayL.pushSample (0, dryL + tapL * fb);
+            L[i] = dryL * (1.0f - mix) + tapL * mix;
+
+            if (R != nullptr)
+            {
+                const float dryR = R[i];
+                delayR.setDelay (delaySamps);
+                const float tapR = delayR.popSample (0);
+                delayR.pushSample (0, dryR + tapR * fb);
+                R[i] = dryR * (1.0f - mix) + tapR * mix;
+            }
+        }
+    }
+
+    // ── De-esser ─────────────────────────────────────────────────────────────────
+    DeEsserProcessor::DeEsserProcessor()
+        : BuiltinEffectBase ("De-Esser", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("freq", "Frequency", freqRange(), 6000.0f));
+              l.add (fparam ("threshold", "Threshold", { -60.0f, 0.0f, 0.01f }, -30.0f));
+              l.add (fparam ("ratio", "Ratio", { 1.0f, 20.0f, 0.01f }, 4.0f));
+              l.add (fparam ("amount", "Amount", { 0.0f, 1.0f, 0.001f }, 0.7f));
+              return l;
+          }())
+    {
+    }
+
+    void DeEsserProcessor::prepareToPlay (double sampleRate, int)
+    {
+        sr = sampleRate;
+        hpL.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 6000.0f);
+        hpR.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 6000.0f);
+        env = 0.0f;
+    }
+
+    void DeEsserProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const float freq = apvts.getRawParameterValue ("freq")->load();
+        const float thresh = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("threshold")->load());
+        const float ratio = apvts.getRawParameterValue ("ratio")->load();
+        const float amount = apvts.getRawParameterValue ("amount")->load();
+
+        hpL.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (sr, freq);
+        hpR.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass (sr, freq);
+        const float rel = std::exp (-1.0f / (float) (0.010 * sr));
+
+        const int n = buffer.getNumSamples();
+        const int ch = buffer.getNumChannels();
+        auto* L = buffer.getWritePointer (0);
+        auto* R = ch > 1 ? buffer.getWritePointer (1) : nullptr;
+
+        for (int i = 0; i < n; ++i)
+        {
+            float sib = std::abs (hpL.processSample (L[i]));
+            if (R != nullptr)
+                sib = juce::jmax (sib, std::abs (hpR.processSample (R[i])));
+
+            env = sib + (env - sib) * rel;
+
+            float gain = 1.0f;
+            if (env > thresh && env > 0.0f)
+            {
+                const float over = env / thresh;
+                const float compressed = std::pow (over, 1.0f / ratio);
+                gain = 1.0f - amount * (1.0f - compressed / over);
+            }
+
+            L[i] *= gain;
+            if (R != nullptr)
+                R[i] *= gain;
+        }
+    }
+
+    // ── Bitcrusher ───────────────────────────────────────────────────────────────
+    BitcrusherProcessor::BitcrusherProcessor()
+        : BuiltinEffectBase ("Bitcrusher", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("bits", "Bits", { 1.0f, 16.0f, 0.01f }, 8.0f));
+              l.add (fparam ("downsample", "Downsample", { 1.0f, 32.0f, 0.01f }, 1.0f));
+              l.add (fparam ("mix", "Mix", { 0.0f, 1.0f, 0.001f }, 1.0f));
+              return l;
+          }())
+    {
+    }
+
+    void BitcrusherProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        const float bits = apvts.getRawParameterValue ("bits")->load();
+        const int downsample = juce::jmax (1, (int) std::round (apvts.getRawParameterValue ("downsample")->load()));
+        const float mix = apvts.getRawParameterValue ("mix")->load();
+        const float levels = std::pow (2.0f, bits - 1.0f);
+
+        auto* L = buffer.getWritePointer (0);
+        auto* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
+        const int n = buffer.getNumSamples();
+
+        for (int i = 0; i < n; ++i)
+        {
+            if (--holdCounter <= 0)
+            {
+                holdCounter = downsample;
+                holdL = std::round (L[i] * levels) / levels;
+                if (R != nullptr)
+                    holdR = std::round (R[i] * levels) / levels;
+            }
+
+            L[i] = L[i] * (1.0f - mix) + holdL * mix;
+            if (R != nullptr)
+                R[i] = R[i] * (1.0f - mix) + holdR * mix;
+        }
+    }
+
     // ── Sidechain compressor ─────────────────────────────────────────────────────
     SidechainCompressor::SidechainCompressor()
         : AudioProcessor (BusesProperties()
@@ -593,6 +793,10 @@ namespace freequency::dsp
         items.add ({ "builtin:gate",       "Gate" });
         items.add ({ "builtin:chorus",     "Chorus" });
         items.add ({ "builtin:phaser",     "Phaser" });
+        items.add ({ "builtin:tremolo",    "Tremolo" });
+        items.add ({ "builtin:flanger",    "Flanger" });
+        items.add ({ "builtin:deesser",    "De-Esser" });
+        items.add ({ "builtin:bitcrusher", "Bitcrusher" });
         items.add ({ "builtin:sccomp",     "Sidechain Comp" });
         return items;
     }
@@ -623,6 +827,10 @@ namespace freequency::dsp
         if (identifier == "builtin:gate")       return std::make_unique<GateProcessor>();
         if (identifier == "builtin:chorus")     return std::make_unique<ChorusProcessor>();
         if (identifier == "builtin:phaser")     return std::make_unique<PhaserProcessor>();
+        if (identifier == "builtin:tremolo")    return std::make_unique<TremoloProcessor>();
+        if (identifier == "builtin:flanger")    return std::make_unique<FlangerProcessor>();
+        if (identifier == "builtin:deesser")    return std::make_unique<DeEsserProcessor>();
+        if (identifier == "builtin:bitcrusher") return std::make_unique<BitcrusherProcessor>();
         if (identifier == "builtin:sccomp")     return std::make_unique<SidechainCompressor>();
         return {};
     }

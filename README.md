@@ -12,12 +12,14 @@ ships a full arrange view, mixing console, automation and disk recording.
 - **Multitrack engine** built on `juce::AudioProcessorGraph` with a strict
   **Model / View / Engine** separation (the models and audio engine have **no**
   `juce::Component` dependency).
-- **Full piano-roll editor**: note draw/move/resize/delete, snapping grid,
+- **Full piano-roll editor**: note draw/move/resize/delete, **multi-select**
+  (Shift+click), **copy/paste** (Ctrl+C/V), **quantize**, snapping grid,
   keyboard gutter, velocity lane, playhead, **arpeggiator** and **slide** notes.
 - **MIDI recording** from the computer-keyboard piano and **hardware MIDI in**.
-- **12 built-in pro effects** (EQ, Compressor, **Sidechain Comp**, Reverb,
-  Delay, Chorus, Phaser, Filter, Gate, Saturator, Clipper, Utility), insertable
-  on tracks **and buses**, each with a parameter editor.
+- **16 built-in pro effects** (EQ, Compressor, **Sidechain Comp**, Reverb,
+  Delay, Chorus, Phaser, **Tremolo**, **Flanger**, **De-Esser**, **Bitcrusher**,
+  Filter, Gate, Saturator, Clipper, Utility), insertable on tracks **and buses**,
+  each with a parameter editor.
 - **Media browser**: directory tree, audition preview, **drag-and-drop** samples
   onto audio tracks.
 - **Transport**: sample-accurate play/stop/loop, tempo, bars·beats·ticks display,
@@ -30,6 +32,13 @@ ships a full arrange view, mixing console, automation and disk recording.
   (`juce::AudioThumbnail`), a **mini piano-roll** for MIDI, bar/beat ruler with
   click-to-seek, and a transport-synced **playhead**. Double-click to add a MIDI
   pattern or import audio. **Grid snapping** (Off / Bar / 1·2 / 1·4 / 1·8 / 1·16).
+- **Clip editing**: drag to move, **edge trim** (left/right handles), **slip edit**
+  (Alt+drag audio content), split, duplicate, delete, nudge.
+- **Audio warp**: offline **OLA time-stretch** (pitch-preserving, no transient
+  locking) and **pitch shift via resample** (Cmd+↑/↓ pitch, Cmd+Shift+←/→ stretch).
+- **Comping**: multi-take switching (`[` / `]`, add take from file) — no swipe
+  crossfade; VariAudio-style pitch correction and note portamento remain on the
+  roadmap.
 - **Mixing console**: per-track / bus / master **channel strips** with faders,
   pan, mute/solo, **meters**, **aux sends** and **FX bus** routing.
 - **Master limiter**: transparent brick-wall safety limiter on the output.
@@ -57,6 +66,10 @@ src/
 │   ├── AutomationCurve
 │   ├── Project    (document root)
 │   └── ProjectSerializer  (ValueTree <-> .freq XML)
+├── DSP/       Standalone signal processors
+│   ├── SynthProcessor, LimiterProcessor
+│   ├── BuiltinEffects   (16 built-in insert FX)
+│   └── TimeStretch      (OLA stretch + resample pitch, offline warp bake)
 ├── Engine/    Real-time audio (no UI, no locks/allocation in processBlock)
 │   ├── Transport             lock-free clock
 │   ├── SnapshotHolder<T>     lock-free publish of immutable snapshots
@@ -70,6 +83,7 @@ src/
     ├── FreequencyLookAndFeel, TransportBar
     ├── ArrangeView, TrackHeaderComponent, TrackLaneComponent,
     │   TimelineRuler, PlayheadOverlay
+    ├── PianoRollEditor   (full-screen MIDI editor)
     └── MixerView, ChannelStrip
 ```
 
@@ -152,4 +166,8 @@ printing `[PASS]` for each.
 - **Phase 4 — Mixer, routing matrix & sends** ✅
 - **Phase 5 — Automation & disk recording** ✅
 - Project save/load ✅
-- Next: full piano-roll editor, clip drag/trim, time-stretch, more built-in FX.
+- Full piano-roll editor, clip drag/trim, OLA time-stretch, resample pitch,
+  comping (take switching), 16 built-in FX ✅
+- Next: VariAudio-style pitch correction, note portamento/slides with resynthesis,
+  swipe comp crossfades, Pattern/PatternClip playback, ghost notes, real-time
+  elastic audio, disk streaming for long clips.

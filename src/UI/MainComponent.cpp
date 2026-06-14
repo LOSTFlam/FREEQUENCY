@@ -614,6 +614,11 @@ namespace freequency::ui
         if (clip == nullptr) return;
         pushUndo();
         clip->pitchSemitones = juce::jlimit (-24, 24, clip->pitchSemitones + semitones);
+        if (clip->length > 0.0)
+        {
+            const double factor = std::pow (2.0, semitones / 12.0);
+            clip->length = juce::jmax (0.01, clip->length / factor);
+        }
         afterClipChange();
     }
 

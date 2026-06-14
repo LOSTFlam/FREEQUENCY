@@ -200,6 +200,66 @@ namespace freequency::dsp
         juce::dsp::Phaser<float> phaser;
     };
 
+    /** Tremolo — LFO amplitude modulation. */
+    class TremoloProcessor final : public BuiltinEffectBase
+    {
+    public:
+        TremoloProcessor();
+        void prepareToPlay (double sampleRate, int) override { sr = sampleRate; }
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        double sr { 44100.0 };
+        float phase { 0.0f };
+    };
+
+    /** Flanger — short modulated delay with feedback. */
+    class FlangerProcessor final : public BuiltinEffectBase
+    {
+    public:
+        FlangerProcessor();
+        void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayL { 4096 };
+        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayR { 4096 };
+        double sr { 44100.0 };
+        float phase { 0.0f };
+    };
+
+    /** De-esser — high-band compressor for sibilance reduction. */
+    class DeEsserProcessor final : public BuiltinEffectBase
+    {
+    public:
+        DeEsserProcessor();
+        void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        juce::dsp::IIR::Filter<float> hpL, hpR;
+        double sr { 44100.0 };
+        float env { 0.0f };
+    };
+
+    /** Bitcrusher — sample-rate and bit-depth reduction. */
+    class BitcrusherProcessor final : public BuiltinEffectBase
+    {
+    public:
+        BitcrusherProcessor();
+        void prepareToPlay (double sampleRate, int) override { sr = sampleRate; }
+        void releaseResources() override {}
+        void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    private:
+        double sr { 44100.0 };
+        float holdL { 0.0f }, holdR { 0.0f };
+        int holdCounter { 0 };
+    };
+
     /**
         SidechainCompressor — a compressor whose gain reduction is driven by a
         separate "key" signal on its sidechain input bus (classic ducking). The
