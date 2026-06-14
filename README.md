@@ -168,6 +168,6 @@ printing `[PASS]` for each.
 - Project save/load ✅
 - Full piano-roll editor, clip drag/trim, OLA time-stretch, resample pitch,
   comping (take switching), 16 built-in FX ✅
-- Next: VariAudio-style pitch correction, note portamento/slides with resynthesis,
-  swipe comp crossfades, Pattern/PatternClip playback, ghost notes, real-time
-  elastic audio, disk streaming for long clips.
+- Next: **Frequency Field** editor (flagship), VariAudio resynth, swipe comp crossfade,
+  PatternClip playback, ghost notes, real-time elastic audio.
+- Design: [FREEQUENCY — Spectral UI (Figma)](https://www.figma.com/design/ACH9Fh5jq0xP3BDmMQFrXr)

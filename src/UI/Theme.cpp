@@ -57,6 +57,19 @@ namespace freequency::ui
             aurora.accentWarm = juce::Colour (0xff60a5fa);
             p.add (aurora);
 
+            Theme spectral;
+            spectral.name = "Spectral";
+            spectral.background = juce::Colour (0xff0a0e14);
+            spectral.panel = juce::Colour (0xff121820);
+            spectral.panelLight = juce::Colour (0xff1a2230);
+            spectral.outline = juce::Colour (0xff2a3548);
+            spectral.textPrimary = juce::Colour (0xffeef2ff);
+            spectral.textDim = juce::Colour (0xff8b95a8);
+            spectral.accent = juce::Colour (0xff2dd4bf);
+            spectral.accentWarm = juce::Colour (0xffa78bfa);
+            spectral.danger = juce::Colour (0xffff6b8a);
+            p.add (spectral);
+
             Theme mono;
             mono.name = "Mono Graphite";
             mono.background = juce::Colour (0xff141416);

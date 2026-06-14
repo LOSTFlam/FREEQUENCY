@@ -49,8 +49,8 @@ a time.
 | # | Subsystem | Inspiration | Status |
 |---|-----------|-------------|--------|
 | 1 | **Hybrid Arranger** — playlist of pattern/audio/automation clips, folder & group tracks, markers, arranger track | FL playlist + Cubase arranger | Linear arranger ✅, patterns (model) ✅, folders/markers ⏳ |
-| 2 | **Advanced MIDI Engine** — piano roll (ghost/slide notes, arpeggiator), step sequencer, chord track, expression maps, logical editor | FL piano roll + Cubase MIDI | Sequencer + mini piano‑roll ✅, step pattern model ✅, advanced editors ⏳ |
-| 3 | **Audio Manipulation** — VariAudio pitch/formant, audio warp, comping (takes/swipe), built‑in audio editor | Cubase + FL Edison | Clip playback + record ✅, comping/warp/VariAudio ⏳ |
+| 2 | **Advanced MIDI Engine** — piano roll (ghost/slide notes, arpeggiator), step sequencer, chord track, expression maps, logical editor | FL piano roll + Cubase MIDI | Sequencer + mini piano‑roll ✅, step pattern model ✅, **Frequency Field** (ghost/portamento) ⏳ |
+| 3 | **Audio Manipulation** — VariAudio pitch/formant, audio warp, comping (takes/swipe), built‑in audio editor | Cubase + FL Edison | Clip playback + OLA/resample ✅, take switch ✅, **Frequency Field** (VariAudio/swipe/elastic) ⏳ |
 | 4 | **Routing & Mixing Console** — inserts, sends, sidechain, VCA faders, control room | Cubase | Strips/sends/FX buses ✅, VCA model ✅, sidechain/control‑room ⏳ |
 | 5 | **Media Browser & Asset Mgmt** — tags, preview, drag‑and‑drop | both | ⏳ |
 | 6 | **DSP & Plugin Ecosystem** — VST3 / AU / CLAP hosting + native DSP framework | both | VST3/AU host ✅, built‑in synth/limiter/metronome ✅, CLAP ⏳ |
@@ -187,10 +187,11 @@ phase.
 
 ## 8. Roadmap (phased)
 
-1. **Core foundation** — models, engine skeleton, modular build *(this phase)*.
+1. **Core foundation** — models, engine skeleton, modular build *(done)*.
 2. **Routing matrix & mixer** — sends ✅, VCA grouping logic, sidechain, control room.
 3. **MIDI engine & piano roll** — slide/ghost notes, arpeggiator, step-pattern playback, chord track.
-4. **Audio clip engine & comping** — takes, swipe crossfades, warp, VariAudio.
-5. **Modular UI & docking** — dockable windows, GPU rendering.
-6. **DSP/plugin** — CLAP hosting, native effect suite.
-7. **Asset browser** — tags, preview, drag-and-drop.
+4. **Audio clip engine & comping** — takes ✅, swipe crossfades, warp ✅ (OLA), VariAudio resynth.
+5. **Frequency Field** — unified pitch·time·take editor (flagship); see `docs/PRODUCT_VISION.md`.
+6. **Modular UI & docking** — dockable windows, GPU rendering, Spectral glass theme.
+7. **DSP/plugin** — CLAP hosting, native effect suite ✅ (16 FX).
+8. **Asset browser** — tags, preview, drag-and-drop ✅ (basic).

@@ -2,7 +2,11 @@
 
 #include "Core/Types.h"
 
+#include "Models/HarmonicEdit.h"
+
 #include <juce_audio_basics/juce_audio_basics.h>
+
+#include <vector>
 
 namespace freequency::models
 {
@@ -107,6 +111,16 @@ namespace freequency::models
         juce::StringArray takeFiles;
         int activeTake { 0 };
 
+        /** VariAudio-style per-segment pitch correction (resynth on snapshot bake). */
+        std::vector<VariAudioSegment> variAudioSegments;
+
+        /** Swipe comp regions blending adjacent takes. */
+        std::vector<CompSwipeRegion> compSwipeRegions;
+
+        /** Elastic time mode and optional warp markers. */
+        ElasticMode elasticMode { ElasticMode::offlineOLA };
+        std::vector<WarpMarker> warpMarkers;
+
         [[nodiscard]] int getNumTakes() const noexcept { return takeFiles.size(); }
     };
 
@@ -125,6 +139,9 @@ namespace freequency::models
 
         /** The note/CC data for this clip, timestamped relative to startTime. */
         juce::MidiMessageSequence sequence;
+
+        /** Portamento pitch slides (Frequency Field / piano roll). */
+        std::vector<PortamentoSlide> portamentoSlides;
     };
 
     /**
