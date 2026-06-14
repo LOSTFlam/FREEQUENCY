@@ -284,7 +284,7 @@ namespace freequency::ui
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
         // Master meter (right side).
-        auto meterArea = getLocalBounds().removeFromRight (160).reduced (12, 16);
+        auto meterArea = getLocalBounds().removeFromRight (140).reduced (12, 16);
         g.setColour (juce::Colour (FreequencyLookAndFeel::background));
         g.fillRoundedRectangle (meterArea.toFloat(), 3.0f);
 
@@ -301,7 +301,7 @@ namespace freequency::ui
         auto r = getLocalBounds().reduced (8, 8);
 
         // Reserve the meter strip on the far right (painted in paint()).
-        r.removeFromRight (170);
+        r.removeFromRight (148);
 
         auto button = [&r] (juce::Component& c, int w)
         {
@@ -334,9 +334,9 @@ namespace freequency::ui
         button (addMidiButton, 64);
         button (mixerButton, 58);
         button (limiterButton, 44);
-        button (saveButton, 50);
-        button (openButton, 50);
-        button (keysButton, 50);
-        button (audioButton, 56);
+        button (saveButton, 54);
+        button (openButton, 58);
+        button (keysButton, 52);
+        button (audioButton, 58);
     }
 } // namespace freequency::ui

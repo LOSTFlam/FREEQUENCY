@@ -98,7 +98,7 @@ namespace freequency::ui
         // Receive keyboard shortcuts + computer-keyboard piano.
         setWantsKeyboardFocus (true);
 
-        setSize (1360, 800);
+        setSize (1460, 820);
     }
 
     MainComponent::~MainComponent()
