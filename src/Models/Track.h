@@ -64,6 +64,10 @@ namespace freequency::models
             any mixer bus/group. */
         juce::String outputBusId;
 
+        /** Track id (dashed UUID) whose signal keys any sidechain-compressor
+            inserts on this track; empty = no sidechain key. */
+        juce::String sidechainSourceId;
+
         // ── Mixer state (lock-free readable) ──────────────────────────────────
         // Stored as linear gain (1.0 == unity) and pan in [-1, +1].
         [[nodiscard]] float getVolume() const noexcept { return volume.load (std::memory_order_relaxed); }

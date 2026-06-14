@@ -12,6 +12,14 @@ ships a full arrange view, mixing console, automation and disk recording.
 - **Multitrack engine** built on `juce::AudioProcessorGraph` with a strict
   **Model / View / Engine** separation (the models and audio engine have **no**
   `juce::Component` dependency).
+- **Full piano-roll editor**: note draw/move/resize/delete, snapping grid,
+  keyboard gutter, velocity lane, playhead, **arpeggiator** and **slide** notes.
+- **MIDI recording** from the computer-keyboard piano and **hardware MIDI in**.
+- **12 built-in pro effects** (EQ, Compressor, **Sidechain Comp**, Reverb,
+  Delay, Chorus, Phaser, Filter, Gate, Saturator, Clipper, Utility), insertable
+  on tracks **and buses**, each with a parameter editor.
+- **Media browser**: directory tree, audition preview, **drag-and-drop** samples
+  onto audio tracks.
 - **Transport**: sample-accurate play/stop/loop, tempo, bars·beats·ticks display,
   **tap tempo**.
 - **Metronome** (Cubase-style click with accented downbeat).
@@ -33,6 +41,8 @@ ships a full arrange view, mixing console, automation and disk recording.
 - **Status bar**: project name, position, sample rate/buffer, audio CPU load.
 - **Project save/load**: custom **`.freq`** XML (ValueTree) documents, associated
   with the app so they open on double-click.
+- **Undo/Redo**, audio-device settings (persisted), and an opt-in **CLAP**
+  hosting extension point (alongside VST3/AU).
 
 ## Architecture
 

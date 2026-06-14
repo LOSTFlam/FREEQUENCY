@@ -502,6 +502,82 @@ namespace freequency::dsp
         phaser.process (ctx);
     }
 
+    // ── Sidechain compressor ─────────────────────────────────────────────────────
+    SidechainCompressor::SidechainCompressor()
+        : AudioProcessor (BusesProperties()
+                              .withInput  ("Main",      juce::AudioChannelSet::stereo(), true)
+                              .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), true)
+                              .withOutput ("Output",    juce::AudioChannelSet::stereo(), true)),
+          apvts (*this, nullptr, "PARAMS", [] {
+              APVTS::ParameterLayout l;
+              l.add (fparam ("threshold", "Threshold", { -60.0f, 0.0f, 0.01f }, -24.0f));
+              l.add (fparam ("ratio", "Ratio", { 1.0f, 20.0f, 0.01f }, 4.0f));
+              l.add (fparam ("attack", "Attack", { 0.1f, 100.0f, 0.01f }, 5.0f));
+              l.add (fparam ("release", "Release", { 5.0f, 1000.0f, 0.01f }, 150.0f));
+              l.add (fparam ("makeup", "Makeup", { 0.0f, 24.0f, 0.01f }, 0.0f));
+              return l;
+          }())
+    {
+    }
+
+    bool SidechainCompressor::isBusesLayoutSupported (const BusesLayout& layouts) const
+    {
+        return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    }
+
+    void SidechainCompressor::getStateInformation (juce::MemoryBlock& dest)
+    {
+        if (auto xml = apvts.copyState().createXml())
+            copyXmlToBinary (*xml, dest);
+    }
+
+    void SidechainCompressor::setStateInformation (const void* data, int size)
+    {
+        if (auto xml = getXmlFromBinary (data, size))
+            if (xml->hasTagName (apvts.state.getType()))
+                apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    }
+
+    void SidechainCompressor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+
+        auto main = getBusBuffer (buffer, true, 0);
+        auto side = getBusBuffer (buffer, true, 1);
+
+        const float thresh = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("threshold")->load());
+        const float ratio = apvts.getRawParameterValue ("ratio")->load();
+        const float makeup = juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("makeup")->load());
+        const float atk = std::exp (-1.0f / (float) (apvts.getRawParameterValue ("attack")->load() * 0.001 * sr));
+        const float rel = std::exp (-1.0f / (float) (apvts.getRawParameterValue ("release")->load() * 0.001 * sr));
+
+        const int n = main.getNumSamples();
+        const int mainCh = main.getNumChannels();
+        const int sideCh = side.getNumChannels();
+
+        for (int i = 0; i < n; ++i)
+        {
+            // Key from the sidechain bus (fall back to main if SC is silent).
+            float key = 0.0f;
+            for (int c = 0; c < sideCh; ++c) key = juce::jmax (key, std::abs (side.getSample (c, i)));
+            if (sideCh == 0 || key < 1.0e-6f)
+                for (int c = 0; c < mainCh; ++c) key = juce::jmax (key, std::abs (main.getSample (c, i)));
+
+            env = key + (env - key) * (key > env ? atk : rel);
+
+            float gain = 1.0f;
+            if (env > thresh && env > 0.0f)
+            {
+                const float over = env / thresh;                  // > 1
+                const float compressed = std::pow (over, 1.0f / ratio);
+                gain = compressed / over;                          // < 1 => reduction
+            }
+
+            for (int c = 0; c < mainCh; ++c)
+                main.setSample (c, i, main.getSample (c, i) * gain * makeup);
+        }
+    }
+
     // ── Factory ──────────────────────────────────────────────────────────────────
     juce::Array<BuiltinEffectInfo> BuiltinEffects::list()
     {
@@ -517,6 +593,7 @@ namespace freequency::dsp
         items.add ({ "builtin:gate",       "Gate" });
         items.add ({ "builtin:chorus",     "Chorus" });
         items.add ({ "builtin:phaser",     "Phaser" });
+        items.add ({ "builtin:sccomp",     "Sidechain Comp" });
         return items;
     }
 
@@ -546,6 +623,7 @@ namespace freequency::dsp
         if (identifier == "builtin:gate")       return std::make_unique<GateProcessor>();
         if (identifier == "builtin:chorus")     return std::make_unique<ChorusProcessor>();
         if (identifier == "builtin:phaser")     return std::make_unique<PhaserProcessor>();
+        if (identifier == "builtin:sccomp")     return std::make_unique<SidechainCompressor>();
         return {};
     }
 } // namespace freequency::dsp

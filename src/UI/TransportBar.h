@@ -38,6 +38,9 @@ namespace freequency::ui
         /** Called when the user opens the audio device settings. */
         std::function<void()> onOpenAudioSettings;
 
+        /** Called when the user toggles the media browser. */
+        std::function<void()> onToggleBrowser;
+
         void paint (juce::Graphics&) override;
         void resized() override;
 
@@ -65,6 +68,7 @@ namespace freequency::ui
         juce::TextButton openButton     { "Open" };
         juce::TextButton keysButton     { "Keys" };
         juce::TextButton audioButton    { "Audio" };
+        juce::TextButton browseButton   { "Browse" };
 
         std::unique_ptr<juce::FileChooser> fileChooser;
 

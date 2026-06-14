@@ -8,6 +8,7 @@
 #include "DSP/SynthProcessor.h"
 #include "DSP/LimiterProcessor.h"
 #include "Engine/MetronomeProcessor.h"
+#include "Engine/PreviewProcessor.h"
 #include "Engine/PluginManager.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -49,7 +50,8 @@ namespace freequency::engine
         snapshot publication — never a lock in processBlock.
     */
     class AudioEngine : private juce::Timer,
-                        public juce::AudioIODeviceCallback
+                        public juce::AudioIODeviceCallback,
+                        public juce::MidiInputCallback
     {
     public:
         AudioEngine();
@@ -77,8 +79,18 @@ namespace freequency::engine
         void syncParametersFromModel();
 
         /** Send a live note on/off to a MIDI track's instrument (computer-keyboard
-            piano). No-op for non-MIDI tracks. */
+            piano). No-op for non-MIDI tracks. Also captured when MIDI recording. */
         void sendLiveNote (const models::Track& track, int noteNumber, float velocity, bool noteOn) noexcept;
+
+        /** The MIDI track that live input (QWERTY / hardware) is monitored into. */
+        void setLiveTargetTrack (models::Track* track) noexcept { liveTargetTrack = track; }
+
+        /** Begin/stop capturing live MIDI into a new clip on the live target track. */
+        void startMidiRecording() noexcept;
+        void stopMidiRecording();
+
+        // juce::MidiInputCallback — hardware MIDI in.
+        void handleIncomingMidiMessage (juce::MidiInput*, const juce::MidiMessage&) override;
 
         // ── Disk recording (punch-in) ───────────────────────────────────────────
         /** Begin streaming the audio input to `file` as a WAV. Recording starts
@@ -114,6 +126,9 @@ namespace freequency::engine
             Used by the UI to pop up a plugin/effect editor for that insert. */
         [[nodiscard]] juce::AudioProcessor* getInsertProcessor (const models::Track& track, int slot) const noexcept;
 
+        /** Live AudioProcessor for a bus insert slot, or nullptr. */
+        [[nodiscard]] juce::AudioProcessor* getBusInsertProcessor (const models::Bus& bus, int slot) const noexcept;
+
         /** Offline (non-realtime) render of the current project for `seconds`,
             starting from timeline position 0 with the transport playing. Returns
             the peak magnitude of the rendered output. Used by the headless
@@ -134,6 +149,10 @@ namespace freequency::engine
 
         /** CPU load (0..1) reported by the audio device. */
         [[nodiscard]] double getCpuUsage() const noexcept { return deviceManager.getCpuUsage(); }
+
+        /** Audition an audio file through the master (media-browser preview). */
+        void previewFile (const juce::File& file);
+        void stopPreview();
 
         // ── juce::AudioIODeviceCallback ─────────────────────────────────────────
         void audioDeviceAboutToStart (juce::AudioIODevice*) override;
@@ -157,12 +176,14 @@ namespace freequency::engine
             NodeID instrument;  // instrument node (MIDI tracks only), else invalid
             std::vector<NodeID> inserts; // insert FX nodes, in series
             std::vector<NodeID> sends;   // send-tap gain nodes, aligned with model sends
+            std::vector<NodeID> sidechainNodes; // sidechain-compressor inserts needing a key
         };
 
         void buildBaseGraph();
         void buildBuses();
         void addTrackChain (models::Track& track);
         NodeID makeInstrumentNode (models::Track& track); // hosted plugin or built-in synth
+        std::unique_ptr<juce::AudioProcessor> createInsertProcessor (const juce::String& identifier);
         void connectStereo (NodeID source, NodeID destination);
         void connectMidi (NodeID source, NodeID destination);
 
@@ -184,9 +205,11 @@ namespace freequency::engine
         Node::Ptr masterNode;
         Node::Ptr limiterNode;
         Node::Ptr metronomeNode;
+        Node::Ptr previewNode;
 
         std::unordered_map<std::string, TrackChain> trackChains;
         std::unordered_map<std::string, NodeID> busNodes; // bus id -> strip node
+        std::unordered_map<std::string, std::vector<NodeID>> busInsertNodes; // bus id -> insert nodes
 
         juce::AudioBuffer<float> renderBuffer; // scratch for the device callback
         juce::MidiBuffer scratchMidi;
@@ -206,6 +229,14 @@ namespace freequency::engine
         juce::File recordFile;
         double recordStartSeconds { 0.0 };
         std::atomic<bool> recording { false };
+
+        // Live MIDI input + MIDI recording.
+        models::Track* liveTargetTrack { nullptr };
+        std::atomic<bool> midiRecording { false };
+        juce::CriticalSection midiRecLock;
+        juce::MidiMessageSequence recordedMidi;
+        double midiRecStartSeconds { 0.0 };
+        juce::StringArray enabledMidiInputs;
 
         std::atomic<float> masterLevel { 0.0f };
         bool metronomeOn { false };

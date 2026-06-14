@@ -23,8 +23,8 @@ namespace freequency::ui
         models::Project& project;
         engine::AudioEngine& engine;
 
-        // Opens the editor window for a track's insert slot (set by MainComponent).
-        std::function<void (models::Track&, int)> openInsertEditor;
+        // Opens a floating editor window for any processor (set by MainComponent).
+        std::function<void (juce::AudioProcessor*, juce::String)> openProcessorEditor;
         // Closes all open plugin editor windows (call before a graph rebuild, which
         // invalidates the live insert processors those windows reference).
         std::function<void()> closePluginWindows;
@@ -36,6 +36,8 @@ namespace freequency::ui
         std::function<void()> repaintArrange; // lightweight: repaint lanes
         std::function<void()> rebuildArrange; // structural: recreate lanes after add/remove
         std::function<void()> pushUndo;       // snapshot the project before an edit
+        std::function<void (models::MidiClip&, models::Track&)> openPianoRoll;
+        std::function<juce::File()> getBrowserSelectedFile; // for drag-and-drop from the browser
 
         double pixelsPerSecond { 90.0 };
 

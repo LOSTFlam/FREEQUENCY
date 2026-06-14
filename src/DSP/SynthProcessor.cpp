@@ -73,7 +73,12 @@ namespace freequency::dsp
                 }
             }
 
-            void pitchWheelMoved (int) override {}
+            void pitchWheelMoved (int value) override
+            {
+                // +/- 2 semitone range; 8192 == centre (no bend).
+                const double semis = (value - 8192) / 8192.0 * 2.0;
+                pitchBend = std::pow (2.0, semis / 12.0);
+            }
             void controllerMoved (int, int) override {}
 
             using juce::SynthesiserVoice::renderNextBlock; // keep double overload visible
@@ -103,7 +108,7 @@ namespace freequency::dsp
 
                     ++startSample;
 
-                    phase += phaseIncrement;
+                    phase += phaseIncrement * pitchBend;
                     if (phase >= 1.0)
                         phase -= 1.0;
                 }
@@ -115,6 +120,7 @@ namespace freequency::dsp
         private:
             double phase { 0.0 };
             double phaseIncrement { 0.0 };
+            double pitchBend { 1.0 };
             float  level { 0.7f };
             float  lpState { 0.0f };
             juce::ADSR adsr;

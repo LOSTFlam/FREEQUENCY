@@ -46,6 +46,43 @@ namespace freequency::ui
         repaint();
     }
 
+    void TrackLaneComponent::importAudioFile (const juce::File& file, double startSeconds)
+    {
+        auto* audioTrack = dynamic_cast<models::AudioTrack*> (&trackRef);
+        if (audioTrack == nullptr || ! file.existsAsFile())
+            return;
+
+        if (context.pushUndo) context.pushUndo();
+        auto* clip = audioTrack->addClip();
+        clip->sourceFile = file;
+        clip->startTime = juce::jmax (0.0, startSeconds);
+        clip->name = file.getFileNameWithoutExtension();
+
+        if (auto reader = std::unique_ptr<juce::AudioFormatReader> (
+                context.engine.getFormatManager().createReaderFor (file)))
+            if (reader->sampleRate > 0)
+                clip->length = (double) reader->lengthInSamples / reader->sampleRate;
+
+        context.engine.rebuildSequences();
+        refreshClips();
+        if (onClipsChanged) onClipsChanged();
+    }
+
+    bool TrackLaneComponent::isInterestedInDragSource (const SourceDetails& d)
+    {
+        return dynamic_cast<models::AudioTrack*> (&trackRef) != nullptr
+               && d.description.toString() == "media-file";
+    }
+
+    void TrackLaneComponent::itemDropped (const SourceDetails& d)
+    {
+        if (! context.getBrowserSelectedFile)
+            return;
+        const auto file = context.getBrowserSelectedFile();
+        if (file.existsAsFile())
+            importAudioFile (file, context.snapTime (context.xToSeconds (d.localPosition.x)));
+    }
+
     void TrackLaneComponent::paint (juce::Graphics& g)
     {
         // Alternating lane background for readability.
@@ -343,6 +380,24 @@ namespace freequency::ui
         if (trackRef.volumeAutomationEnabled)
             return;
 
+        // Double-clicking an existing MIDI clip opens the piano-roll editor.
+        {
+            const double t = context.xToSeconds (e.x);
+            for (int i = 0; i < trackRef.getNumClips(); ++i)
+            {
+                auto* clip = trackRef.getClip (i);
+                const double len = clip->length > 0.0 ? clip->length : 2.0;
+                if (t >= clip->startTime && t < clip->startTime + len)
+                {
+                    if (auto* midiClip = dynamic_cast<models::MidiClip*> (clip))
+                    {
+                        if (context.openPianoRoll) context.openPianoRoll (*midiClip, trackRef);
+                        return;
+                    }
+                }
+            }
+        }
+
         const auto clickedSeconds = context.snapTime (context.xToSeconds (e.x));
 
         if (auto* midiTrack = dynamic_cast<models::MidiTrack*> (&trackRef))
@@ -381,25 +436,8 @@ namespace freequency::ui
                 [this, audioTrack, clickedSeconds] (const juce::FileChooser& fc)
                 {
                     const auto file = fc.getResult();
-                    if (! file.existsAsFile())
-                        return;
-
-                    if (context.pushUndo) context.pushUndo();
-                    auto* clip = audioTrack->addClip();
-                    clip->sourceFile = file;
-                    clip->startTime = clickedSeconds;
-                    clip->name = file.getFileNameWithoutExtension();
-
-                    if (auto reader = std::unique_ptr<juce::AudioFormatReader> (
-                            context.engine.getFormatManager().createReaderFor (file)))
-                    {
-                        if (reader->sampleRate > 0)
-                            clip->length = (double) reader->lengthInSamples / reader->sampleRate;
-                    }
-
-                    context.engine.rebuildSequences();
-                    refreshClips();
-                    if (onClipsChanged) onClipsChanged();
+                    if (file.existsAsFile())
+                        importAudioFile (file, clickedSeconds);
                 });
         }
     }

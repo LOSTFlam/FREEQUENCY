@@ -26,6 +26,15 @@ namespace freequency::ui
         fader.setValue (getVolume(), juce::dontSendNotification);
         fader.onValueChange = [this] { setVolume ((float) fader.getValue()); };
 
+        // Insert FX (available on track and bus strips).
+        if (insertList() != nullptr)
+        {
+            addAndMakeVisible (fxButton);
+            fxButton.setColour (juce::TextButton::buttonColourId, juce::Colour (FreequencyLookAndFeel::panelLight));
+            fxButton.onClick = [this] { showFxMenu(); };
+            buildInsertButtons();
+        }
+
         if (role == Role::track && track != nullptr)
         {
             addAndMakeVisible (panKnob);
@@ -89,23 +98,34 @@ namespace freequency::ui
                 };
             }
 
-            // ── Insert FX slots ────────────────────────────────────────────────
-            addAndMakeVisible (fxButton);
-            fxButton.setColour (juce::TextButton::buttonColourId, juce::Colour (FreequencyLookAndFeel::panelLight));
-            fxButton.onClick = [this] { showFxMenu(); };
-
-            for (int i = 0; i < track->insertPluginIdentifiers.size(); ++i)
+            // ── Sidechain key source (feeds any Sidechain Comp inserts) ─────────
+            addAndMakeVisible (scBox);
             {
-                const auto id = track->insertPluginIdentifiers[i];
-                const auto label = dsp::BuiltinEffects::isBuiltin (id)
-                                       ? dsp::BuiltinEffects::displayName (id)
-                                       : id.fromLastOccurrenceOf (":", false, false);
-
-                auto* ib = insertButtons.add (new juce::TextButton (label));
-                ib->setColour (juce::TextButton::buttonColourId, track->colour.withAlpha (0.35f));
-                const int slot = i;
-                ib->onClick = [this, slot] { if (context.openInsertEditor) context.openInsertEditor (*track, slot); };
-                addAndMakeVisible (ib);
+                scBox.addItem ("SC: none", 1);
+                scTrackIds.add ("");
+                auto& tl = context.project.getTimeline();
+                for (int i = 0; i < tl.getNumTracks(); ++i)
+                {
+                    auto* other = tl.getTrack (i);
+                    if (other == nullptr || other == track)
+                        continue;
+                    scTrackIds.add (other->getId().toDashedString());
+                    scBox.addItem ("SC: " + other->name, scBox.getNumItems() + 1);
+                }
+                const int sel = juce::jmax (0, scTrackIds.indexOf (track->sidechainSourceId));
+                scBox.setSelectedId (sel + 1, juce::dontSendNotification);
+                scBox.onChange = [this]
+                {
+                    const int idx = scBox.getSelectedId() - 1;
+                    if (idx >= 0 && idx < scTrackIds.size())
+                    {
+                        if (context.pushUndo) context.pushUndo();
+                        track->sidechainSourceId = scTrackIds[idx];
+                        if (context.closePluginWindows) context.closePluginWindows();
+                        context.engine.rebuildGraph();
+                        if (onRoutingChanged) onRoutingChanged();
+                    }
+                };
             }
 
             // One send knob per FX bus in the project.
@@ -161,9 +181,58 @@ namespace freequency::ui
         stopTimer();
     }
 
+    juce::StringArray* ChannelStrip::insertList() const
+    {
+        if (role == Role::track && track != nullptr) return &track->insertPluginIdentifiers;
+        if (role == Role::bus && bus != nullptr)     return &bus->insertPluginIdentifiers;
+        return nullptr;
+    }
+
+    juce::AudioProcessor* ChannelStrip::insertProcessor (int slot) const
+    {
+        if (role == Role::track && track != nullptr) return context.engine.getInsertProcessor (*track, slot);
+        if (role == Role::bus && bus != nullptr)     return context.engine.getBusInsertProcessor (*bus, slot);
+        return nullptr;
+    }
+
+    juce::String ChannelStrip::stripName() const
+    {
+        if (role == Role::track && track != nullptr) return track->name;
+        if (role == Role::bus && bus != nullptr)     return bus->name;
+        return "Master";
+    }
+
+    void ChannelStrip::buildInsertButtons()
+    {
+        auto* list = insertList();
+        if (list == nullptr) return;
+
+        const auto col = role == Role::track && track != nullptr ? track->colour
+                       : bus != nullptr ? bus->colour : juce::Colours::grey;
+
+        for (int i = 0; i < list->size(); ++i)
+        {
+            const auto id = (*list)[i];
+            const auto label = dsp::BuiltinEffects::isBuiltin (id)
+                                   ? dsp::BuiltinEffects::displayName (id)
+                                   : id.fromLastOccurrenceOf (":", false, false);
+
+            auto* ib = insertButtons.add (new juce::TextButton (label));
+            ib->setColour (juce::TextButton::buttonColourId, col.withAlpha (0.35f));
+            const int slot = i;
+            ib->onClick = [this, slot]
+            {
+                if (context.openProcessorEditor)
+                    context.openProcessorEditor (insertProcessor (slot), stripName());
+            };
+            addAndMakeVisible (ib);
+        }
+    }
+
     void ChannelStrip::showFxMenu()
     {
-        if (track == nullptr)
+        auto* list = insertList();
+        if (list == nullptr)
             return;
 
         juce::PopupMenu menu;
@@ -184,13 +253,13 @@ namespace freequency::ui
             menu.addSubMenu ("Add plugin", pluginMenu);
         }
 
-        if (track->insertPluginIdentifiers.size() > 0)
+        if (list->size() > 0)
         {
             menu.addSeparator();
             juce::PopupMenu removeMenu;
-            for (int i = 0; i < track->insertPluginIdentifiers.size(); ++i)
+            for (int i = 0; i < list->size(); ++i)
             {
-                const auto id = track->insertPluginIdentifiers[i];
+                const auto id = (*list)[i];
                 const auto label = dsp::BuiltinEffects::isBuiltin (id)
                                        ? dsp::BuiltinEffects::displayName (id)
                                        : id.fromLastOccurrenceOf (":", false, false);
@@ -200,7 +269,7 @@ namespace freequency::ui
         }
 
         menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (fxButton),
-            [this, effects, plugins] (int result)
+            [this, effects, plugins, list] (int result)
             {
                 if (result == 0)
                     return;
@@ -210,17 +279,11 @@ namespace freequency::ui
                     context.closePluginWindows();
 
                 if (result >= 1000 && result < 2000)
-                {
-                    track->insertPluginIdentifiers.add (effects[result - 1000].id);
-                }
+                    list->add (effects[result - 1000].id);
                 else if (result >= 2000 && result < 3000)
-                {
-                    track->insertPluginIdentifiers.add (plugins[result - 2000].createIdentifierString());
-                }
+                    list->add (plugins[result - 2000].createIdentifierString());
                 else if (result >= 3000)
-                {
-                    track->insertPluginIdentifiers.remove (result - 3000);
-                }
+                    list->remove (result - 3000);
 
                 context.engine.rebuildGraph();
                 if (onRoutingChanged) onRoutingChanged(); // rebuilds the mixer strips
@@ -315,13 +378,21 @@ namespace freequency::ui
         {
             outBox.setBounds (r.removeFromTop (18));
             r.removeFromTop (3);
+            scBox.setBounds (r.removeFromTop (18));
+            r.removeFromTop (3);
+        }
 
-            // Insert FX list at the top of the strip.
+        // Insert FX list (track + bus strips).
+        if (insertList() != nullptr)
+        {
             fxButton.setBounds (r.removeFromTop (18));
             for (auto* ib : insertButtons)
                 ib->setBounds (r.removeFromTop (16).reduced (0, 1));
             r.removeFromTop (4);
+        }
 
+        if (role == Role::track)
+        {
             panKnob.setBounds (r.removeFromTop (34).withSizeKeepingCentre (34, 34));
             r.removeFromTop (4);
 

@@ -49,6 +49,10 @@ namespace freequency::ui
         models::Bus* bus { nullptr };
 
         void showFxMenu();
+        void buildInsertButtons();
+        [[nodiscard]] juce::StringArray* insertList() const;       // track or bus FX chain
+        [[nodiscard]] juce::AudioProcessor* insertProcessor (int slot) const;
+        [[nodiscard]] juce::String stripName() const;
 
         juce::Label titleLabel;
         juce::Slider fader;
@@ -59,6 +63,8 @@ namespace freequency::ui
         juce::OwnedArray<juce::TextButton> insertButtons; // one per insert slot
         juce::ComboBox outBox;                            // output bus selector (track role)
         juce::StringArray outBusIds;                      // parallel to outBox items (index 0 = master)
+        juce::ComboBox scBox;                             // sidechain key source (track role)
+        juce::StringArray scTrackIds;                     // parallel to scBox items (index 0 = none)
 
         juce::OwnedArray<juce::Slider> sendKnobs;   // one per FX bus (track role)
         juce::OwnedArray<juce::Label> sendLabels;

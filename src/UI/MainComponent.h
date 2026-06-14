@@ -9,6 +9,8 @@
 #include "UI/MixerView.h"
 #include "UI/StatusBar.h"
 #include "UI/PluginEditorWindow.h"
+#include "UI/PianoRollEditor.h"
+#include "UI/MediaBrowser.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -25,7 +27,8 @@ namespace freequency::ui
         the model and engine never depend on it.
     */
     class MainComponent final : public juce::Component,
-                                public juce::ApplicationCommandTarget
+                                public juce::ApplicationCommandTarget,
+                                public juce::DragAndDropContainer
     {
     public:
         MainComponent();
@@ -91,6 +94,9 @@ namespace freequency::ui
         std::unique_ptr<ArrangeView> arrangeView;
         std::unique_ptr<MixerView> mixerView;
         std::unique_ptr<StatusBar> statusBar;
+        std::unique_ptr<PianoRollEditor> pianoRoll;
+        std::unique_ptr<MediaBrowser> mediaBrowser;
+        bool browserVisible { false };
         juce::OwnedArray<PluginEditorWindow> pluginWindows;
 
         juce::ApplicationCommandManager commandManager;

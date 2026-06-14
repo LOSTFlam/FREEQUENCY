@@ -134,6 +134,10 @@ namespace freequency::ui
         addAndMakeVisible (audioButton);
         audioButton.onClick = [this] { if (onOpenAudioSettings) onOpenAudioSettings(); };
 
+        addAndMakeVisible (browseButton);
+        browseButton.setClickingTogglesState (true);
+        browseButton.onClick = [this] { if (onToggleBrowser) onToggleBrowser(); };
+
         addAndMakeVisible (saveButton);
         saveButton.onClick = [this]
         {
@@ -338,5 +342,6 @@ namespace freequency::ui
         button (openButton, 58);
         button (keysButton, 52);
         button (audioButton, 58);
+        button (browseButton, 62);
     }
 } // namespace freequency::ui

@@ -37,6 +37,16 @@ set(FREEQUENCY_DEFS
     JUCE_PLUGINHOST_AU=1
     JUCE_PLUGINHOST_LADSPA=1)
 
+# CLAP hosting is an opt-in extension. JUCE 8 has no built-in CLAP host, so this
+# requires a CLAP host bridge (e.g. clap-juce-extensions) to be made available
+# and to provide a juce::AudioPluginFormat. When enabled we define
+# FREEQUENCY_HAS_CLAP and PluginManager registers the format; the rest of the app
+# is already format-agnostic (plugins are referenced by identifier string).
+option(FREEQUENCY_ENABLE_CLAP "Enable CLAP plugin hosting (needs a CLAP host bridge)" OFF)
+if(FREEQUENCY_ENABLE_CLAP)
+    list(APPEND FREEQUENCY_DEFS FREEQUENCY_HAS_CLAP=1)
+endif()
+
 # ── Shared interface: C++20, our include root, JUCE headers/defs, warning flags ──
 add_library(freequency_common INTERFACE)
 target_compile_features(freequency_common INTERFACE cxx_std_20)
@@ -105,6 +115,8 @@ freequency_add_library(FreequencyUI
     UI/ArrangeView.cpp
     UI/ChannelStrip.cpp
     UI/MixerView.cpp
+    UI/PianoRollEditor.cpp
+    UI/MediaBrowser.cpp
     UI/MainComponent.cpp)
 target_link_libraries(FreequencyUI PUBLIC FreequencyCore FreequencyEngine)
 
