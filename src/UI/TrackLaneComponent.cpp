@@ -55,6 +55,8 @@ namespace freequency::ui
         if (context.pushUndo) context.pushUndo();
         auto* clip = audioTrack->addClip();
         clip->sourceFile = file;
+        clip->takeFiles.add (file.getFullPathName());
+        clip->activeTake = 0;
         clip->startTime = juce::jmax (0.0, startSeconds);
         clip->name = file.getFileNameWithoutExtension();
 
@@ -86,10 +88,9 @@ namespace freequency::ui
     void TrackLaneComponent::paint (juce::Graphics& g)
     {
         // Alternating lane background for readability.
-        g.fillAll (juce::Colour (laneIndex % 2 == 0 ? FreequencyLookAndFeel::background
-                                                    : FreequencyLookAndFeel::panel).withAlpha (0.6f));
+        g.fillAll ((laneIndex % 2 == 0 ? theme().background : theme().panel).withAlpha (0.6f));
 
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (0.5f));
+        g.setColour (theme().outline.withAlpha (0.5f));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
         // Bar grid lines.
@@ -100,7 +101,7 @@ namespace freequency::ui
         for (double t = 0.0; context.secondsToX (t) < getWidth(); t += secsPerBar)
         {
             const auto x = context.secondsToX (t);
-            g.setColour (juce::Colour (FreequencyLookAndFeel::outline).withAlpha (0.4f));
+            g.setColour (theme().outline.withAlpha (0.4f));
             g.drawVerticalLine (x, 0.0f, (float) getHeight());
         }
 
@@ -131,7 +132,7 @@ namespace freequency::ui
             auto titleBar = clipBounds.removeFromTop (14);
             g.setColour (trackRef.colour.withAlpha (0.55f));
             g.fillRect (titleBar);
-            g.setColour (juce::Colour (FreequencyLookAndFeel::textPrimary));
+            g.setColour (theme().textPrimary);
             g.setFont (juce::FontOptions (10.0f));
             g.drawText (clip->name, titleBar.reduced (4, 0), juce::Justification::centredLeft, true);
 
@@ -175,11 +176,11 @@ namespace freequency::ui
         const auto& curve = trackRef.volumeAutomation;
 
         // Dim the lane so the automation overlay reads clearly.
-        g.setColour (juce::Colour (FreequencyLookAndFeel::background).withAlpha (0.35f));
+        g.setColour (theme().background.withAlpha (0.35f));
         g.fillRect (getLocalBounds());
 
         juce::Path path;
-        const auto accent = juce::Colour (FreequencyLookAndFeel::accentWarm);
+        const auto accent = theme().accentWarm;
 
         if (curve.getNumPoints() == 0)
             return;
@@ -332,7 +333,7 @@ namespace freequency::ui
 
         const auto pxPerSecInClip = (double) clipBounds.getWidth() / clip.length;
 
-        g.setColour (juce::Colour (FreequencyLookAndFeel::accent));
+        g.setColour (theme().accent);
 
         for (int i = 0; i < seq.getNumEvents(); ++i)
         {
@@ -363,7 +364,7 @@ namespace freequency::ui
         auto* thumb = thumbnails[clipIndex];
         if (thumb == nullptr || thumb->getTotalLength() <= 0.0)
         {
-            g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+            g.setColour (theme().textDim);
             g.setFont (juce::FontOptions (10.0f));
             g.drawText (clip.sourceFile.getFileName(), clipBounds, juce::Justification::centred, true);
             return;
@@ -372,6 +373,16 @@ namespace freequency::ui
         g.setColour (trackRef.colour.brighter (0.4f));
         const auto length = clip.length > 0.0 ? clip.length : thumb->getTotalLength();
         thumb->drawChannels (g, clipBounds, clip.sourceOffset, clip.sourceOffset + length, 0.9f);
+
+        // Comping indicator (active take / total).
+        if (clip.getNumTakes() > 1)
+        {
+            g.setColour (theme().accentWarm);
+            g.setFont (juce::FontOptions (9.0f));
+            g.drawText ("T" + juce::String (clip.activeTake + 1) + "/" + juce::String (clip.getNumTakes()),
+                        clipBounds.removeFromBottom (12).reduced (3, 0),
+                        juce::Justification::bottomRight, false);
+        }
     }
 
     void TrackLaneComponent::mouseDoubleClick (const juce::MouseEvent& e)

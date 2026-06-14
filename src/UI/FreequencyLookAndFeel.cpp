@@ -4,27 +4,37 @@ namespace freequency::ui
 {
     FreequencyLookAndFeel::FreequencyLookAndFeel()
     {
-        setColour (juce::ResizableWindow::backgroundColourId, juce::Colour (background));
-        setColour (juce::DocumentWindow::textColourId,        juce::Colour (textPrimary));
+        applyTheme();
+    }
 
-        setColour (juce::Label::textColourId,                 juce::Colour (textPrimary));
+    void FreequencyLookAndFeel::applyTheme()
+    {
+        const auto& t = theme();
 
-        setColour (juce::TextButton::buttonColourId,          juce::Colour (panelLight));
-        setColour (juce::TextButton::buttonOnColourId,        juce::Colour (accent));
-        setColour (juce::TextButton::textColourOffId,         juce::Colour (textPrimary));
-        setColour (juce::TextButton::textColourOnId,          juce::Colour (background));
+        setColour (juce::ResizableWindow::backgroundColourId, t.background);
+        setColour (juce::DocumentWindow::textColourId,        t.textPrimary);
 
-        setColour (juce::Slider::backgroundColourId,          juce::Colour (panel));
-        setColour (juce::Slider::trackColourId,               juce::Colour (accent));
-        setColour (juce::Slider::thumbColourId,               juce::Colour (textPrimary));
+        setColour (juce::Label::textColourId,                 t.textPrimary);
 
-        setColour (juce::ComboBox::backgroundColourId,        juce::Colour (panelLight));
-        setColour (juce::ComboBox::textColourId,              juce::Colour (textPrimary));
-        setColour (juce::ComboBox::outlineColourId,           juce::Colour (outline));
+        setColour (juce::TextButton::buttonColourId,          t.panelLight);
+        setColour (juce::TextButton::buttonOnColourId,        t.accent);
+        setColour (juce::TextButton::textColourOffId,         t.textPrimary);
+        setColour (juce::TextButton::textColourOnId,          t.background);
 
-        setColour (juce::PopupMenu::backgroundColourId,       juce::Colour (panel));
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (accent));
-        setColour (juce::PopupMenu::highlightedTextColourId,  juce::Colour (background));
+        setColour (juce::Slider::backgroundColourId,          t.panel);
+        setColour (juce::Slider::trackColourId,               t.accent);
+        setColour (juce::Slider::thumbColourId,               t.textPrimary);
+
+        setColour (juce::ComboBox::backgroundColourId,        t.panelLight);
+        setColour (juce::ComboBox::textColourId,              t.textPrimary);
+        setColour (juce::ComboBox::outlineColourId,           t.outline);
+
+        setColour (juce::PopupMenu::backgroundColourId,       t.panel);
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, t.accent);
+        setColour (juce::PopupMenu::highlightedTextColourId,  t.background);
+
+        setColour (juce::TreeView::backgroundColourId,        t.panel);
+        setColour (juce::ListBox::backgroundColourId,         t.panel);
     }
 
     void FreequencyLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
@@ -39,17 +49,17 @@ namespace freequency::ui
 
         juce::Path back;
         back.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, startAngle, endAngle, true);
-        g.setColour (juce::Colour (outline));
+        g.setColour (theme().outline);
         g.strokePath (back, juce::PathStrokeType (lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         juce::Path arc;
         arc.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-        g.setColour (juce::Colour (accent));
+        g.setColour (theme().accent);
         g.strokePath (arc, juce::PathStrokeType (lineW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         juce::Point<float> thumb (centre.x + radius * std::cos (angle - juce::MathConstants<float>::halfPi),
                                   centre.y + radius * std::sin (angle - juce::MathConstants<float>::halfPi));
-        g.setColour (juce::Colour (textPrimary));
+        g.setColour (theme().textPrimary);
         g.fillEllipse (juce::Rectangle<float> (lineW, lineW).withCentre (thumb));
     }
 
@@ -62,25 +72,25 @@ namespace freequency::ui
         if (style == juce::Slider::LinearVertical)
         {
             const auto trackX = bounds.getCentreX();
-            g.setColour (juce::Colour (panel));
+            g.setColour (theme().panel);
             g.fillRoundedRectangle (trackX - 3.0f, bounds.getY(), 6.0f, bounds.getHeight(), 3.0f);
 
-            g.setColour (juce::Colour (accent));
+            g.setColour (theme().accent);
             g.fillRoundedRectangle (trackX - 3.0f, sliderPos, 6.0f, bounds.getBottom() - sliderPos, 3.0f);
 
-            g.setColour (juce::Colour (textPrimary));
+            g.setColour (theme().textPrimary);
             g.fillRoundedRectangle (bounds.getX() + 2.0f, sliderPos - 5.0f, bounds.getWidth() - 4.0f, 10.0f, 3.0f);
         }
         else
         {
             const auto trackY = bounds.getCentreY();
-            g.setColour (juce::Colour (panel));
+            g.setColour (theme().panel);
             g.fillRoundedRectangle (bounds.getX(), trackY - 3.0f, bounds.getWidth(), 6.0f, 3.0f);
 
-            g.setColour (juce::Colour (accent));
+            g.setColour (theme().accent);
             g.fillRoundedRectangle (bounds.getX(), trackY - 3.0f, sliderPos - bounds.getX(), 6.0f, 3.0f);
 
-            g.setColour (juce::Colour (textPrimary));
+            g.setColour (theme().textPrimary);
             g.fillRoundedRectangle (sliderPos - 5.0f, bounds.getY() + 2.0f, 10.0f, bounds.getHeight() - 4.0f, 3.0f);
         }
 
@@ -100,7 +110,7 @@ namespace freequency::ui
         g.setColour (c);
         g.fillRoundedRectangle (bounds, 4.0f);
 
-        g.setColour (juce::Colour (outline));
+        g.setColour (theme().outline);
         g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
     }
 } // namespace freequency::ui

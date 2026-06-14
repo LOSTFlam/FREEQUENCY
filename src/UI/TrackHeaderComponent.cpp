@@ -15,11 +15,11 @@ namespace freequency::ui
         addAndMakeVisible (typeLabel);
         typeLabel.setText (track.getTypeName(), juce::dontSendNotification);
         typeLabel.setFont (juce::FontOptions (10.0f));
-        typeLabel.setColour (juce::Label::textColourId, juce::Colour (FreequencyLookAndFeel::textDim));
+        typeLabel.setColour (juce::Label::textColourId, theme().textDim);
 
         addAndMakeVisible (muteButton);
         muteButton.setClickingTogglesState (true);
-        muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::danger));
+        muteButton.setColour (juce::TextButton::buttonOnColourId, theme().danger);
         muteButton.onClick = [this]
         {
             trackRef.setMuted (muteButton.getToggleState());
@@ -28,7 +28,7 @@ namespace freequency::ui
 
         addAndMakeVisible (soloButton);
         soloButton.setClickingTogglesState (true);
-        soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accentWarm));
+        soloButton.setColour (juce::TextButton::buttonOnColourId, theme().accentWarm);
         soloButton.onClick = [this]
         {
             trackRef.setSoloed (soloButton.getToggleState());
@@ -38,7 +38,7 @@ namespace freequency::ui
         addAndMakeVisible (autoButton);
         autoButton.setClickingTogglesState (true);
         autoButton.setToggleState (track.volumeAutomationEnabled, juce::dontSendNotification);
-        autoButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (FreequencyLookAndFeel::accent));
+        autoButton.setColour (juce::TextButton::buttonOnColourId, theme().accent);
         autoButton.onClick = [this]
         {
             trackRef.volumeAutomationEnabled = autoButton.getToggleState();
@@ -80,13 +80,13 @@ namespace freequency::ui
 
     void TrackHeaderComponent::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::panel));
+        g.fillAll (theme().panel);
 
         // Colour swatch down the left edge identifies the track at a glance.
         g.setColour (trackRef.colour);
         g.fillRect (0, 0, 5, getHeight());
 
-        g.setColour (juce::Colour (FreequencyLookAndFeel::outline));
+        g.setColour (theme().outline);
         g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
     }
 

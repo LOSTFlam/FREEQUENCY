@@ -121,12 +121,12 @@ namespace freequency::ui
 
     void ArrangeView::paint (juce::Graphics& g)
     {
-        g.fillAll (juce::Colour (FreequencyLookAndFeel::background));
+        g.fillAll (theme().background);
 
         // Top-left corner block above the header column.
-        g.setColour (juce::Colour (FreequencyLookAndFeel::panelLight));
+        g.setColour (theme().panelLight);
         g.fillRect (0, 0, UIContext::headerWidth, UIContext::rulerHeight);
-        g.setColour (juce::Colour (FreequencyLookAndFeel::textDim));
+        g.setColour (theme().textDim);
         g.setFont (juce::FontOptions (11.0f));
         g.drawText ("TRACKS", juce::Rectangle<int> (0, 0, UIContext::headerWidth, UIContext::rulerHeight)
                                   .reduced (10, 0),
