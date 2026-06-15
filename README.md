@@ -95,6 +95,40 @@ thread via `std::atomic`; MIDI/clip/automation data via lock-free immutable
 de-zippering via `juce::SmoothedValue`. Disk recording streams through a
 `ThreadedWriter` FIFO drained on a background thread.
 
+## Download (no build required)
+
+Prebuilt installers are built automatically on every push to `main`. You do **not**
+need Visual Studio, CMake or Git to run FREEQUENCY.
+
+1. Open **[GitHub Actions → Build FREEQUENCY](https://github.com/LOSTFlam/FREEQUENCY/actions/workflows/build.yml)**
+2. Click the latest green run on `main`
+3. Scroll to **Artifacts** and download for your platform:
+
+| Artifact | Platform | Install |
+|----------|----------|---------|
+| `FREEQUENCY-windows` | Windows 64-bit | Run `FREEQUENCY-Setup-0.1.0-win64.exe` from `dist/`, **or** unzip portable and double-click `install-portable.ps1` |
+| `FREEQUENCY-macos` | macOS | Open `FREEQUENCY-0.1.0-macOS.dmg`, drag to Applications |
+| `FREEQUENCY-linux` | Linux x64 | `sudo dpkg -i FREEQUENCY-*-linux-*.deb` **or** extract `.tar.gz` to `/` |
+
+**Tagged releases** (`v0.1.0`, …) publish the same files on the
+[Releases](https://github.com/LOSTFlam/FREEQUENCY/releases) page.
+
+### Windows quick install (portable ZIP)
+
+```bat
+REM After downloading and extracting the ZIP:
+powershell -ExecutionPolicy Bypass -File install-portable.ps1
+```
+
+Or from a cloned repo (after someone else built it):
+
+```bat
+install.bat
+```
+
+No admin rights required — installs to `%LOCALAPPDATA%\Programs\FREEQUENCY` and
+registers `.freq` projects.
+
 ## Building
 
 Requires **CMake ≥ 3.22**, **Git**, and a **C++20** compiler. JUCE 8 is fetched
@@ -160,13 +194,29 @@ The standalone app is produced at:
 > Tip: add `-DFREEQUENCY_ENABLE_LTO=OFF` for much faster incremental link times
 > during development.
 
-### Prebuilt binaries (CI)
+### Create installers (maintainers)
 
-Every push builds **FREEQUENCY.exe**, **FREEQUENCY.app** and the Linux binary via
-GitHub Actions (`.github/workflows/build.yml`); download them from the run's
-*Artifacts* section.
+After a local Release build:
 
-### Install & `.freq` association (Linux)
+```bat
+build.bat
+scripts\package.bat          REM ZIP + Inno Setup .exe → dist\
+```
+
+```bash
+./scripts/build.sh
+./scripts/package.sh         # .tar.gz / .deb (Linux) or .dmg (macOS)
+```
+
+Publish a release (CI builds all platforms):
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+See **Download** above for where to get CI artifacts on every `main` push.
+
+### Install & `.freq` association (Linux, from source)
 
 ```bash
 ./scripts/build.sh

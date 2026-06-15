@@ -50,15 +50,31 @@ jobs:
         if: runner.os == 'Linux'
         run: xvfb-run -a ./build/src/FREEQUENCY_artefacts/Release/FREEQUENCY --selftest
 
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: bash packaging/linux/build-packages.sh 0.1.0
+
       - name: Self-test (macOS)
         if: runner.os == 'macOS'
         run: ./build/src/FREEQUENCY_artefacts/Release/FREEQUENCY.app/Contents/MacOS/FREEQUENCY --selftest
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: bash packaging/macos/create-dmg.sh 0.1.0
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          ./scripts/package.ps1 -Version 0.1.0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: FREEQUENCY-${{ matrix.name }}
           path: |
+            dist/**
             build/src/FREEQUENCY_artefacts/Release/FREEQUENCY
             build/src/FREEQUENCY_artefacts/Release/FREEQUENCY.exe
             build/src/FREEQUENCY_artefacts/Release/FREEQUENCY.app
